@@ -70,12 +70,37 @@ static void *core_proxy(void *arg)
 	pin_to_core(coreid);
 
 	/* Do some cpuid stuff */
-	uint32_t eax, ebx, ecx, edx;
-	uint32_t x2apic_id, smt_mask_width, smt_select_mask, smt_id;
-	eax = 1;
-	ecx = 0;
-	cpuid(eax, ecx , &eax, NULL, &ecx, NULL);
-	printf("I am core: %d, eax: 0x%08x, ecx: 0x%08x\n", coreid, eax, ecx);
+uint32_t eax, ebx, ecx, edx;
+  uint32_t x2apic_id, smt_mask_width, smt_select_mask, smt_id,
+    core_plus_mask_width,core_only_select_mask,core_id;
+
+ 
+  uint32_t apic_id,count,logical_cpu_bits,core_bits,logical_CPU_number_within_core,core_number_within_chip,chip_id;
+
+  eax = 0x00000001;
+  ecx = 0;
+  cpuid(eax, ecx, &eax, &ebx, &ecx, &edx);
+
+  apic_id = ebx >>24;
+
+
+  eax = 0x0000000b;
+  ecx = 0;
+  cpuid(eax, ecx, &eax, &ebx, &ecx, &edx);
+  logical_cpu_bits = eax;
+
+  eax = 0x0000000b;
+  ecx = 1;
+  cpuid(eax, ecx, &eax, &ebx, &ecx, &edx);
+  core_bits = eax - logical_cpu_bits;
+  
+  logical_CPU_number_within_core = apic_id & ( (1 << logical_cpu_bits) -1) ;
+  core_number_within_chip = (apic_id >> logical_cpu_bits) & ( (1 << core_bits) -1) ;
+  chip_id = apic_id & ~( (1 << (logical_cpu_bits+core_bits) ) -1) ;
+
+   printf("I am core: %d, logical_CPU_number_within_core: 0x%08x,apic_id: 0x%08x,core_number_within_chip: 0x%08x, chip_id: 0x%08x\n",
+  	 coreid, logical_CPU_number_within_core, apic_id, core_number_within_chip,chip_id);
+
 }
 
 int main(int argc, char **argv)
