@@ -70,12 +70,9 @@ static void *core_proxy(void *arg)
   pin_to_core(coreid);
 
   /* Do some cpuid stuff */
-  uint32_t eax, ebx, ecx, edx;
-  uint32_t x2apic_id, core_plus_mask_width,
-    core_only_select_mask,core_id;
-
- 
-  uint32_t apic_id,count,logical_cpu_bits,core_bits,logical_CPU_number_within_core,core_number_within_chip,chip_id;
+  uint32_t eax, ebx, ecx, edx; 
+  uint32_t apic_id,count,logical_cpu_bits,core_bits,
+    logical_CPU_number_within_core,core_number_within_chip,chip_id;
 
   eax = 0x00000001;
   ecx = 0;
