@@ -29,88 +29,166 @@
  * SUCH DAMAGE.
  */
 
-#define _GNU_SOURCE
-#include <sys/sysinfo.h>
 #include <stdio.h>
-#include <sched.h>
-#include <pthread.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
+#include "arch.h"
+#include "acpi.h"
+#include "cputopology.h"
 
-static inline void cpuid(uint32_t info1, uint32_t info2, uint32_t *eaxp,
-                         uint32_t *ebxp, uint32_t *ecxp, uint32_t *edxp)
+struct cpu_topology cpu_topology[MAX_NUM_CPUS] = { [0 ... (MAX_NUM_CPUS-1) ]
+                                                   {-1, -1, -1, -1, false} };
+int os_coreid_lookup[MAX_NUM_CPUS] = {[0 ... (MAX_NUM_CPUS - 1)] -1};
+int hw_coreid_lookup[MAX_NUM_CPUS] = {[0 ... (MAX_NUM_CPUS - 1)] -1};
+int num_cores = 0;
+int num_cpus = 0;
+int num_sockets = 0;
+int num_numa = 0;
+
+static void adjust_ids(int id_offset)
 {
-  uint32_t eax, ebx, ecx, edx;
-  /* Can select with both eax (info1) and ecx (info2) */
-  asm volatile("cpuid" 
-	       : "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx)
-	       : "a" (info1), "c" (info2));
-  if (eaxp)
-    *eaxp = eax;
-  if (ebxp)
-    *ebxp = ebx;
-  if (ecxp)
-    *ecxp = ecx;
-  if (edxp)
-    *edxp = edx;
+	int new_id = 0, old_id = -1;
+	for (int i=0; i<MAX_NUM_CPUS; i++) {
+		for (int j=0; j<MAX_NUM_CPUS; j++) {
+			int *id_field = ((void*)&cpu_topology[j] + id_offset);
+			if (*id_field >= new_id) {
+				if (old_id == -1)
+					old_id = *id_field;
+				if (old_id == *id_field)
+					*id_field = new_id;
+			}
+		}
+		old_id = -1;
+		new_id++;
+	}
 }
 
-static void pin_to_core(int i)
+static void fill_topology_lookup_maps()
 {
-  cpu_set_t cpuset;
-  CPU_ZERO(&cpuset);
-  CPU_SET(i, &cpuset);
-  sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
-  sched_yield();
+	int last_numa = -1, last_socket = -1, last_cpu = -1;
+	for (int i=0; i<MAX_NUM_CPUS; i++) {
+		if (cpu_topology[i].online) {
+			if (cpu_topology[i].numa_id > last_numa) {
+				last_numa = cpu_topology[i].numa_id;
+				num_numa++;
+			}
+			if (cpu_topology[i].socket_id > last_socket) {
+				last_socket = cpu_topology[i].socket_id;
+				num_sockets++;
+			}
+			if (cpu_topology[i].cpu_id > last_cpu) {
+				last_cpu = cpu_topology[i].cpu_id;
+				num_cpus++;
+			}
+			hw_coreid_lookup[num_cores] = i;
+			os_coreid_lookup[i] = num_cores;
+			num_cores++;
+		}
+	}
+	num_sockets *= num_numa;
+	num_cpus *= num_sockets;
 }
 
-static void *core_proxy(void *arg)
+static void build_topology(uint32_t core_bits, uint32_t cpu_bits)
 {
-  /* Pin to core */
-  int coreid = (int)(long)arg;
-  pin_to_core(coreid);
+	int cpc = (1 << core_bits);
+	int cps = (1 << cpu_bits);
+	int num_cores = (1 << (core_bits + cpu_bits));
+	uint32_t apic_id = 0, core_id = 0, cpu_id = 0, socket_id = 0;
 
-  /* Do some cpuid stuff */
-  uint32_t eax, ebx, ecx, edx; 
-  uint32_t apic_id,count,logical_cpu_bits,core_bits,
-    logical_CPU_number_within_core,core_number_within_chip,chip_id;
+	int i = 0;
+	struct Apicst *temp = apics->st;
+	while (temp) {
+		if (temp->type == ASlapic) {
+			apic_id = temp->lapic.id;
+			socket_id = apic_id & ~(num_cores - 1);
+			cpu_id = (apic_id >> core_bits) & (cps - 1);
+			core_id = apic_id & (cpc - 1);
 
-  eax = 0x00000001;
-  ecx = 0;
-  cpuid(eax, ecx, &eax, &ebx, &ecx, &edx);
+			/* TODO: Build numa topology properly */
+			cpu_topology[apic_id].numa_id = 0;
+			cpu_topology[apic_id].socket_id = socket_id;
+			cpu_topology[apic_id].cpu_id = cpu_id;
+			cpu_topology[apic_id].core_id = core_id;
+			cpu_topology[apic_id].online = false;
+			i++;
+		}
+		temp = temp->next;
+	}
+	adjust_ids(offsetof(struct cpu_topology, socket_id));
+	adjust_ids(offsetof(struct cpu_topology, cpu_id));
+	adjust_ids(offsetof(struct cpu_topology, core_id));
+}
 
-  apic_id = ebx >>24;
+static void build_flat_topology()
+{
+	int i = 0;
+	struct Apicst *temp = apics->st;
+	while (temp) {
+		if (temp->type == ASlapic) {
+			int apic_id = temp->lapic.id;
+			cpu_topology[apic_id].numa_id = 0;
+			cpu_topology[apic_id].socket_id = 0;
+			cpu_topology[apic_id].cpu_id = 0;
+			cpu_topology[apic_id].core_id = 0;
+			cpu_topology[apic_id].online = false;
+		}
+		temp = temp->next;
+	}
+}
 
+void topology_init()
+{
+	uint32_t eax, ebx, ecx, edx;
+	int smt_leaf, core_leaf;
+	uint32_t core_bits = 0, cpu_bits = 0;
 
-  eax = 0x0000000b;
-  ecx = 0;
-  cpuid(eax, ecx, &eax, &ebx, &ecx, &edx);
-  logical_cpu_bits = eax;
+	eax = 0x0000000b;
+	ecx = 1;
+	cpuid(eax, ecx, &eax, &ebx, &ecx, &edx);
+	core_leaf = (ecx >> 8) & 0x00000002;
+	if (core_leaf == 2) {
+		cpu_bits = eax;
+		eax = 0x0000000b;
+		ecx = 0;
+		cpuid(eax, ecx, &eax, &ebx, &ecx, &edx);
+		smt_leaf = (ecx >> 8) & 0x00000001;
+		if (smt_leaf == 1) {
+			core_bits = eax;
+			cpu_bits = cpu_bits - core_bits;
+		}
+	}
+	if (cpu_bits)
+		build_topology(core_bits, cpu_bits);
+	else 
+		build_flat_topology();
+}
 
-  eax = 0x0000000b;
-  ecx = 1;
-  cpuid(eax, ecx, &eax, &ebx, &ecx, &edx);
-  core_bits = eax - logical_cpu_bits;
-  
-  logical_CPU_number_within_core = apic_id & ( (1 << logical_cpu_bits) -1) ;
-  core_number_within_chip = (apic_id >> logical_cpu_bits) & ( (1 << core_bits) -1) ;
-  chip_id = apic_id & ~( (1 << (logical_cpu_bits+core_bits) ) -1) ;
-
-  printf("I am core: %d, logical_CPU_number_within_core: 0x%08x,apic_id: 0x%08x,core_number_within_chip: 0x%08x, chip_id: 0x%08x\n",
-  	 coreid, logical_CPU_number_within_core, apic_id, core_number_within_chip,chip_id);
-
+void print_cpu_topology() 
+{
+	printf("num_numa: %d, num_sockets: %d, num_cpus: %d, num_cores: %d\n",
+            num_numa, num_sockets, num_cpus, num_cores);
+	for (int i=0; i < num_cores; i++) {
+		int coreid = hw_coreid_lookup[i];
+		printf("OScoreid: %3d, HWcoreid: %3d, Numa Domain: %3d, "
+		       "Socket: %3d, CPU: %3d, Core: %3d\n",
+		       i,
+		       coreid,
+		       cpu_topology[coreid].numa_id, 
+		       cpu_topology[coreid].socket_id,
+		       cpu_topology[coreid].cpu_id, 
+		       cpu_topology[coreid].core_id);
+	}
 }
 
 int main(int argc, char **argv)
 {
-  int ncpus = get_nprocs();
-  pthread_t pthread[ncpus];
-  for (int i=0; i<ncpus; i++) {
-    pthread_create(&pthread[i], NULL, core_proxy, (void*)(long)i);
-  }
-  for (int i=0; i<ncpus; i++) {
-    pthread_join(pthread[i], NULL);
-  }
-	
-  return 0;
+	acpiinit();	
+	topology_init();
+	archinit();
+	fill_topology_lookup_maps();
+	print_cpu_topology();
+	return 0;
 }
 
