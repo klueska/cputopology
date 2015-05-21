@@ -29,9 +29,39 @@
  * SUCH DAMAGE.
  */
 
+#define _GNU_SOURCE
+#include <sys/sysinfo.h>
+#include <pthread.h>
+#include <stdio.h>
 #include "arch.h"
 #include "acpi.h"
 #include "topology.h"
+
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static void *core_proxy(void *arg)
+{
+	int core = (int)(long)arg;
+	pin_to_core(core);
+
+	pthread_mutex_lock(&mutex);
+	printf("numa_domain: %3d, socketid: %3d, chipid: %3d, coreid: %3d\n",
+	       numa_domain(), socketid(), chipid(), coreid());
+	pthread_mutex_unlock(&mutex);
+}
+
+void test_id_funcs()
+{
+	int ncpus = get_nprocs();
+	pthread_t pthread[ncpus];
+
+	for (int i=0; i<ncpus; i++) {
+		pthread_create(&pthread[i], NULL, core_proxy, (void*)(long)i);
+	}
+	for (int i=0; i<ncpus; i++) {
+		pthread_join(pthread[i], NULL);
+	}
+}
 
 int main(int argc, char **argv)
 {
@@ -40,6 +70,7 @@ int main(int argc, char **argv)
 	archinit();
 	fill_topology_lookup_maps();
 	print_cpu_topology();
+	test_id_funcs();
 	return 0;
 }
 
