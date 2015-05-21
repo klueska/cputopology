@@ -7,7 +7,7 @@
 #ifndef TOPOLOGY_H_
 #define TOPOLOGY_H_
 
-#include <stdint.h>
+#include <stdbool.h>
 
 #define MAX_NUM_CPUS 256
 
@@ -20,5 +20,9 @@ struct cpu_topology {
 };
 
 extern struct cpu_topology cpu_topology[MAX_NUM_CPUS];
+
+void topology_init();
+void fill_topology_lookup_maps();
+void print_cpu_topology();
 
 #endif /* !TOPOLOGY_H_ */

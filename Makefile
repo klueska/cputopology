@@ -1,4 +1,4 @@
-CFILES = cputopology.c acpi.c arch.c
+CFILES = main.c topology.c acpi.c arch.c
 EXEC = cputopology
 LIBS = -lpthread
 

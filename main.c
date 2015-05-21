@@ -29,53 +29,17 @@
  * SUCH DAMAGE.
  */
 
-#define _GNU_SOURCE
-#include <sys/sysinfo.h>
-#include <sched.h>
-#include <pthread.h>
-#include <stdint.h>
-#include <malloc.h>
-#include <stdbool.h>
 #include "arch.h"
+#include "acpi.h"
 #include "topology.h"
 
-void pin_to_core(int coreid)
+int main(int argc, char **argv)
 {
-	cpu_set_t cpuset;
-	CPU_ZERO(&cpuset);
-	CPU_SET(coreid, &cpuset);
-	sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
-	sched_yield();
-}
-
-uint32_t get_apic_id()
-{
-	uint32_t eax, ebx, ecx, edx;
-	eax = 0x0000000b;
-	ecx = 0;
-	cpuid(eax, ecx, &eax, &ebx, &ecx, &edx);
-	return edx;
-}
-
-static void *core_proxy(void *arg)
-{
-	int coreid = (int)(long)arg;
-	pin_to_core(coreid);
-
-	uint32_t apic_id = get_apic_id();
-	cpu_topology[apic_id].online = true;
-}
-
-void archinit()
-{
-	int ncpus = get_nprocs();
-	pthread_t pthread[ncpus];
-
-	for (int i=0; i<ncpus; i++) {
-		pthread_create(&pthread[i], NULL, core_proxy, (void*)(long)i);
-	}
-	for (int i=0; i<ncpus; i++) {
-		pthread_join(pthread[i], NULL);
-	}
+	acpiinit();	
+	topology_init();
+	archinit();
+	fill_topology_lookup_maps();
+	print_cpu_topology();
+	return 0;
 }
 

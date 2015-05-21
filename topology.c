@@ -29,13 +29,17 @@
  * SUCH DAMAGE.
  */
 
+#define _GNU_SOURCE
+#include <sys/sysinfo.h>
 #include <stdio.h>
+#include <sched.h>
+#include <pthread.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
 #include "arch.h"
 #include "acpi.h"
-#include "cputopology.h"
+#include "topology.h"
 
 struct cpu_topology cpu_topology[MAX_NUM_CPUS] = { [0 ... (MAX_NUM_CPUS-1) ]
                                                    {-1, -1, -1, -1, false} };
@@ -64,7 +68,7 @@ static void adjust_ids(int id_offset)
 	}
 }
 
-static void fill_topology_lookup_maps()
+void fill_topology_lookup_maps()
 {
 	int last_numa = -1, last_socket = -1, last_cpu = -1;
 	for (int i=0; i<MAX_NUM_CPUS; i++) {
@@ -180,15 +184,5 @@ void print_cpu_topology()
 		       cpu_topology[coreid].cpu_id, 
 		       cpu_topology[coreid].core_id);
 	}
-}
-
-int main(int argc, char **argv)
-{
-	acpiinit();	
-	topology_init();
-	archinit();
-	fill_topology_lookup_maps();
-	print_cpu_topology();
-	return 0;
 }
 
