@@ -14,12 +14,17 @@
 struct cpu_topology {
 	int numa_id;
 	int socket_id;
-	int cpu_id;
+	int chip_id;
 	int core_id;
 	bool online;
 };
 
 extern struct cpu_topology cpu_topology[MAX_NUM_CPUS];
+
+int numa_domain();
+int socketid();
+int chipid();
+int coreid();
 
 void topology_init();
 void fill_topology_lookup_maps();

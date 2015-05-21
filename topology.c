@@ -46,7 +46,7 @@ struct cpu_topology cpu_topology[MAX_NUM_CPUS] = { [0 ... (MAX_NUM_CPUS-1) ]
 int os_coreid_lookup[MAX_NUM_CPUS] = {[0 ... (MAX_NUM_CPUS - 1)] -1};
 int hw_coreid_lookup[MAX_NUM_CPUS] = {[0 ... (MAX_NUM_CPUS - 1)] -1};
 int num_cores = 0;
-int num_cpus = 0;
+int num_chips = 0;
 int num_sockets = 0;
 int num_numa = 0;
 
@@ -81,9 +81,9 @@ void fill_topology_lookup_maps()
 				last_socket = cpu_topology[i].socket_id;
 				num_sockets++;
 			}
-			if (cpu_topology[i].cpu_id > last_cpu) {
-				last_cpu = cpu_topology[i].cpu_id;
-				num_cpus++;
+			if (cpu_topology[i].chip_id > last_cpu) {
+				last_cpu = cpu_topology[i].chip_id;
+				num_chips++;
 			}
 			hw_coreid_lookup[num_cores] = i;
 			os_coreid_lookup[i] = num_cores;
@@ -91,15 +91,15 @@ void fill_topology_lookup_maps()
 		}
 	}
 	num_sockets *= num_numa;
-	num_cpus *= num_sockets;
+	num_chips *= num_sockets;
 }
 
-static void build_topology(uint32_t core_bits, uint32_t cpu_bits)
+static void build_topology(uint32_t core_bits, uint32_t chip_bits)
 {
 	int cpc = (1 << core_bits);
-	int cps = (1 << cpu_bits);
-	int num_cores = (1 << (core_bits + cpu_bits));
-	uint32_t apic_id = 0, core_id = 0, cpu_id = 0, socket_id = 0;
+	int cps = (1 << chip_bits);
+	int num_cores = (1 << (core_bits + chip_bits));
+	uint32_t apic_id = 0, core_id = 0, chip_id = 0, socket_id = 0;
 
 	int i = 0;
 	struct Apicst *temp = apics->st;
@@ -107,13 +107,13 @@ static void build_topology(uint32_t core_bits, uint32_t cpu_bits)
 		if (temp->type == ASlapic) {
 			apic_id = temp->lapic.id;
 			socket_id = apic_id & ~(num_cores - 1);
-			cpu_id = (apic_id >> core_bits) & (cps - 1);
+			chip_id = (apic_id >> core_bits) & (cps - 1);
 			core_id = apic_id & (cpc - 1);
 
 			/* TODO: Build numa topology properly */
 			cpu_topology[apic_id].numa_id = 0;
 			cpu_topology[apic_id].socket_id = socket_id;
-			cpu_topology[apic_id].cpu_id = cpu_id;
+			cpu_topology[apic_id].chip_id = chip_id;
 			cpu_topology[apic_id].core_id = core_id;
 			cpu_topology[apic_id].online = false;
 			i++;
@@ -121,7 +121,7 @@ static void build_topology(uint32_t core_bits, uint32_t cpu_bits)
 		temp = temp->next;
 	}
 	adjust_ids(offsetof(struct cpu_topology, socket_id));
-	adjust_ids(offsetof(struct cpu_topology, cpu_id));
+	adjust_ids(offsetof(struct cpu_topology, chip_id));
 	adjust_ids(offsetof(struct cpu_topology, core_id));
 }
 
@@ -134,7 +134,7 @@ static void build_flat_topology()
 			int apic_id = temp->lapic.id;
 			cpu_topology[apic_id].numa_id = 0;
 			cpu_topology[apic_id].socket_id = 0;
-			cpu_topology[apic_id].cpu_id = 0;
+			cpu_topology[apic_id].chip_id = 0;
 			cpu_topology[apic_id].core_id = 0;
 			cpu_topology[apic_id].online = false;
 		}
@@ -146,42 +146,69 @@ void topology_init()
 {
 	uint32_t eax, ebx, ecx, edx;
 	int smt_leaf, core_leaf;
-	uint32_t core_bits = 0, cpu_bits = 0;
+	uint32_t core_bits = 0, chip_bits = 0;
 
 	eax = 0x0000000b;
 	ecx = 1;
 	cpuid(eax, ecx, &eax, &ebx, &ecx, &edx);
 	core_leaf = (ecx >> 8) & 0x00000002;
 	if (core_leaf == 2) {
-		cpu_bits = eax;
+		chip_bits = eax;
 		eax = 0x0000000b;
 		ecx = 0;
 		cpuid(eax, ecx, &eax, &ebx, &ecx, &edx);
 		smt_leaf = (ecx >> 8) & 0x00000001;
 		if (smt_leaf == 1) {
 			core_bits = eax;
-			cpu_bits = cpu_bits - core_bits;
+			chip_bits = chip_bits - core_bits;
 		}
 	}
-	if (cpu_bits)
-		build_topology(core_bits, cpu_bits);
+	if (chip_bits)
+		build_topology(core_bits, chip_bits);
 	else 
 		build_flat_topology();
 }
 
+int numa_domain()
+{
+	struct cpu_topology *c = &cpu_topology[get_apic_id()];
+	return c->numa_id;
+}
+
+int socketid()
+{
+	struct cpu_topology *c = &cpu_topology[get_apic_id()];
+	return num_sockets/num_numa * numa_domain() +
+	       c->socket_id;
+}
+
+int chipid()
+{
+	struct cpu_topology *c = &cpu_topology[get_apic_id()];
+	return num_chips/num_sockets * socketid() +
+	       c->chip_id;
+}
+
+int coreid()
+{
+	struct cpu_topology *c = &cpu_topology[get_apic_id()];
+	return num_cores/num_chips * chipid() +
+	       c->core_id;
+}
+
 void print_cpu_topology() 
 {
-	printf("num_numa: %d, num_sockets: %d, num_cpus: %d, num_cores: %d\n",
-            num_numa, num_sockets, num_cpus, num_cores);
+	printf("num_numa: %d, num_sockets: %d, num_chips: %d, num_cores: %d\n",
+            num_numa, num_sockets, num_chips, num_cores);
 	for (int i=0; i < num_cores; i++) {
 		int coreid = hw_coreid_lookup[i];
 		printf("OScoreid: %3d, HWcoreid: %3d, Numa Domain: %3d, "
-		       "Socket: %3d, CPU: %3d, Core: %3d\n",
+		       "Socket: %3d, Chip: %3d, Core: %3d\n",
 		       i,
 		       coreid,
 		       cpu_topology[coreid].numa_id, 
 		       cpu_topology[coreid].socket_id,
-		       cpu_topology[coreid].cpu_id, 
+		       cpu_topology[coreid].chip_id, 
 		       cpu_topology[coreid].core_id);
 	}
 }
