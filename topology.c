@@ -97,8 +97,8 @@ void fill_topology_lookup_maps()
 	num_chips *= num_sockets;
 }
 
-void build_ressources_structure(){
-	build_structure(num_numa, num_sockets, 
+void build_available_ressources(){
+	build_structure_ressources(num_numa, num_sockets, 
 			chips_per_socket, cores_per_chip);
 }
 

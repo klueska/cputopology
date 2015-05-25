@@ -67,7 +67,7 @@ void init_sockets(int numa_id, int sockets_per_numa,
 	}
 }
 
-void build_structure(int nb_numas, int sockets_per_numa,
+void build_structure_ressources(int nb_numas, int sockets_per_numa,
 		int chips_per_socket, int cores_per_chip)
 {
 	for( int i = 0; i< nb_numas; i++) {
@@ -89,17 +89,6 @@ void build_structure(int nb_numas, int sockets_per_numa,
 
 struct node *find_core(int coreid)
 {
-	/*Find our node walking through the list*/
-	
-	/* for (struct node *np = runnable_cores.cqh_first; np != (void *)&runnable_cores; */
-	/*      np = np->core_link.cqe_next) { */
-	/* 	if (np->id == coreid) { */
-	/* 		return np; */
-	/* 	} */
-	/* } */
-	/* return NULL; */
-
-	/*Find our node using the lookups arrays*/
 	return cores_lookup[coreid];
 }
 
@@ -118,53 +107,55 @@ struct node *find_numa(int numaid)
 	return numas_lookup[numaid];
 }
 
-void test_circular_queue(){
-	int c = 0;
-		struct node *np = runnable_cores.cqh_first;		
-	while(1){
-		if(np != NULL)
-			printf("core id: %d\n", np->id);		
-		np = np->core_link.cqe_next;
-		c++;
-		if(c > 20)
-			return;
-	}
-}
-
-void print_val()
+void print_available_ressources()
 {		
-	test_circular_queue();
-/* for (struct node *np = runnable_cores.cqh_first; np != (void *)&runnable_cores; */
-	/*      np = np->core_link.cqe_next) { */
-	/* 	printf("core id: %d, type: %d, father_id: %d, ", */
-	/* 	       np->id, np->type, np->father->id);	 */
-	/* 	printf("father_type: %d,next_core_available id: %d\n", */
-	/* 	       np->father->type, np->core_link.cqe_next->id); */
-	/* } */
-	/* for (struct node *np = runnable_chips.cqh_first; np != (void *)&runnable_chips; */
-	/*      np = np->chip_link.cqe_next) { */
-	/* 	printf("chip id: %d, type: %d, father_id: %d, father_type: %d", */
-	/* 	       np->id, np->type, np->father->id, np->father->type); */
-	/* 	for(int i = 0; np->sons[i] == NULL; i++) */
-	/* 		printf(", son %d type: %d", */
-	/* 		       np->sons[i]->id, np->sons[i]->type); */
-	/* 	printf("\n"); */
-	/* } */
-	/* for (struct node *np = runnable_sockets.cqh_first; np != (void *)&runnable_sockets; */
-	/*      np = np->socket_link.cqe_next) { */
-	/* 	printf("socket id: %d, type: %d, father_id: %d, father_type: %d", */
-	/* 	       np->id, np->type, np->father->id, np->father->type); */
-	/* 	for(int i = 0; np->sons[i] == NULL; i++) */
-	/* 		printf(", son %d type: %d", */
-	/* 		       np->sons[i]->id, np->sons[i]->type); */
-	/* 	printf("\n"); */
-	/* } */
-	/* for (struct node *np = runnable_numas.cqh_first; np != (void *)&runnable_numas; */
-	/*      np = np->numa_link.cqe_next) { */
-	/* 	printf("numa id: %d, type: %d", np->id, np->type); */
-	/* 	for(int i = 0; np->sons[i] == NULL; i++) */
-	/* 		printf(", son %d type: %d", */
-	/* 		       np->sons[i]->id, np->sons[i]->type); */
-	/* 	printf("\n"); */
-	/* } */
+	struct node *np = runnable_cores.cqh_first;
+	CIRCLEQ_FOREACH(np, &runnable_cores, core_link) {
+		printf("core id: %d, type: %d, father_id: %d, ",
+		       np->id, np->type, np->father->id);
+		printf("father_type: %d,next_core_available id: %d\n",
+		       np->father->type, 
+		       CIRCLEQ_LOOP_NEXT(&runnable_cores,
+					 np, core_link)->id);
+	}
+	
+	np = runnable_chips.cqh_first;
+	CIRCLEQ_FOREACH(np, &runnable_chips, chip_link) {
+		printf("chip id: %d, type: %d, father_id: %d, ",
+		       np->id, np->type, np->father->id);
+		printf("father_type: %d,next_chip_available id: %d",
+		       np->father->type, 
+		       CIRCLEQ_LOOP_NEXT(&runnable_chips,
+					 np, chip_link)->id);
+		for(int i = 0; np->sons[i] == NULL; i++)
+			printf(", son %d type: %d",
+			       np->sons[i]->id, np->sons[i]->type);
+		printf("\n");
+	}
+	
+	np = runnable_sockets.cqh_first;
+	CIRCLEQ_FOREACH(np, &runnable_sockets, socket_link) {
+		printf("socket id: %d, type: %d, father_id: %d, ",
+		       np->id, np->type, np->father->id);
+		printf("father_type: %d,next_socket_available id: %d",
+		       np->father->type, 
+		       CIRCLEQ_LOOP_NEXT(&runnable_sockets,
+					 np, socket_link)->id);
+		for(int i = 0; np->sons[i] == NULL; i++)
+			printf(", son %d type: %d",
+			       np->sons[i]->id, np->sons[i]->type);
+		printf("\n");
+	}
+	
+	np = runnable_numas.cqh_first;
+	CIRCLEQ_FOREACH(np, &runnable_numas, numa_link) {
+		printf("numa id: %d, type: %d, next_numa_available id: %d",
+		       np->id, np->type,
+		       CIRCLEQ_LOOP_NEXT(&runnable_numas,
+					 np, numa_link)->id);
+		for(int i = 0; np->sons[i] == NULL; i++)
+			printf(", son %d type: %d",
+			       np->sons[i]->id, np->sons[i]->type);
+		printf("\n");
+	}
 }

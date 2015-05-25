@@ -21,8 +21,8 @@ struct node {
 	struct node **sons;
 };
 
-void print_val();
-void build_structure(int nb_numas, int sockets_per_numa,
+void print_available_ressources();
+void build_structure_ressources(int nb_numas, int sockets_per_numa,
 		     int chips_per_socket, int cores_per_chip);
 
 /*Those lists are our 4 circular lists. If a node 

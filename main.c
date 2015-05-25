@@ -73,9 +73,9 @@ int main(int argc, char **argv)
 	archinit();
 	fill_topology_lookup_maps();
 	//print_cpu_topology();
-	build_ressources_structure();	
+	build_available_ressources();	
 	test_id_funcs();
-	print_val();
+	print_available_ressources();
 	return 0;
 }
 

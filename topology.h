@@ -33,5 +33,5 @@ int get_cores_per_chip();
 void topology_init();
 void fill_topology_lookup_maps();
 void print_cpu_topology();
-void build_ressources_structure();
+void build_available_ressources();
 #endif /* !TOPOLOGY_H_ */
