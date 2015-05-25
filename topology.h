@@ -8,6 +8,7 @@
 #define TOPOLOGY_H_
 
 #include <stdbool.h>
+#include "schedule.h"
 
 #define MAX_NUM_CPUS 256
 
@@ -25,9 +26,12 @@ int numa_domain();
 int socketid();
 int chipid();
 int coreid();
+int get_sockets_per_numa();
+int get_chips_per_socket();
+int get_cores_per_chip();
 
 void topology_init();
 void fill_topology_lookup_maps();
 void print_cpu_topology();
-
+void build_ressources_structure();
 #endif /* !TOPOLOGY_H_ */

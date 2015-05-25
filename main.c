@@ -36,6 +36,7 @@
 #include "arch.h"
 #include "acpi.h"
 #include "topology.h"
+#include "schedule.h"
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -65,12 +66,16 @@ void test_id_funcs()
 
 int main(int argc, char **argv)
 {
+	int nb_numas = 1, sockets_per_numa = 2,
+		cores_per_socket = 4, threads_per_core = 2; 
 	acpiinit();	
 	topology_init();
 	archinit();
 	fill_topology_lookup_maps();
-	print_cpu_topology();
+	//print_cpu_topology();
+	build_ressources_structure();	
 	test_id_funcs();
+	print_val();
 	return 0;
 }
 

@@ -49,6 +49,9 @@ int num_cores = 0;
 int num_chips = 0;
 int num_sockets = 0;
 int num_numa = 0;
+int sockets_per_numa = 0;
+int chips_per_socket = 0;
+int cores_per_chip = 0;
 
 static void adjust_ids(int id_offset)
 {
@@ -94,10 +97,16 @@ void fill_topology_lookup_maps()
 	num_chips *= num_sockets;
 }
 
+void build_ressources_structure(){
+	build_structure(num_numa, num_sockets, 
+			chips_per_socket, cores_per_chip);
+}
+
 static void build_topology(uint32_t core_bits, uint32_t chip_bits)
 {
-	int cpc = (1 << core_bits);
-	int cps = (1 << chip_bits);
+	cores_per_chip = (1 << core_bits);
+	int cores_per_socket = (1 << chip_bits);
+	chips_per_socket = cores_per_socket / cores_per_chip;
 	int num_cores = (1 << (core_bits + chip_bits));
 	uint32_t apic_id = 0, core_id = 0, chip_id = 0, socket_id = 0;
 
@@ -107,8 +116,8 @@ static void build_topology(uint32_t core_bits, uint32_t chip_bits)
 		if (temp->type == ASlapic) {
 			apic_id = temp->lapic.id;
 			socket_id = apic_id & ~(num_cores - 1);
-			chip_id = (apic_id >> core_bits) & (cps - 1);
-			core_id = apic_id & (cpc - 1);
+			chip_id = (apic_id >> core_bits) & (cores_per_socket - 1);
+			core_id = apic_id & (cores_per_chip - 1);
 
 			/* TODO: Build numa topology properly */
 			cpu_topology[apic_id].numa_id = 0;
