@@ -45,13 +45,7 @@ struct cpu_topology cpu_topology[MAX_NUM_CPUS] = { [0 ... (MAX_NUM_CPUS-1) ]
                                                    {-1, -1, -1, -1, false} };
 int os_coreid_lookup[MAX_NUM_CPUS] = {[0 ... (MAX_NUM_CPUS - 1)] -1};
 int hw_coreid_lookup[MAX_NUM_CPUS] = {[0 ... (MAX_NUM_CPUS - 1)] -1};
-int num_cores = 0;
-int num_chips = 0;
-int num_sockets = 0;
-int num_numa = 0;
-int sockets_per_numa = 0;
-int chips_per_socket = 0;
-int cores_per_chip = 0;
+
 
 static void adjust_ids(int id_offset)
 {
@@ -93,14 +87,11 @@ void fill_topology_lookup_maps()
 			num_cores++;
 		}
 	}
+	sockets_per_numa = num_sockets;
 	num_sockets *= num_numa;
 	num_chips *= num_sockets;
 }
 
-void build_available_ressources(){
-	build_structure_ressources(num_numa, num_sockets, 
-			chips_per_socket, cores_per_chip);
-}
 
 static void build_topology(uint32_t core_bits, uint32_t chip_bits)
 {

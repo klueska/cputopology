@@ -1,5 +1,9 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
 #include <sys/queue.h>
- 
+#include "topology.h" 
+
 #ifndef	_SCHEDULE_
 #define	_SCHEDULE_
 
@@ -13,6 +17,7 @@ enum node_type { CORE, CHIP, SOCKET, NUMA };
 struct node {
 	int id;
 	enum node_type type;
+	bool available;
 	CIRCLEQ_ENTRY(node) core_link;
 	CIRCLEQ_ENTRY(node) chip_link;
 	CIRCLEQ_ENTRY(node) socket_link;
@@ -20,10 +25,6 @@ struct node {
 	struct node *father;
 	struct node **sons;
 };
-
-void print_available_ressources();
-void build_structure_ressources(int nb_numas, int sockets_per_numa,
-		     int chips_per_socket, int cores_per_chip);
 
 /*Those lists are our 4 circular lists. If a node 
 (core, chip, socket or numa) is in the corresponding list that 
@@ -41,9 +42,22 @@ struct node *sockets_lookup[SOCKETS_IN_SYSTEM];
 struct node *chips_lookup[CHIPS_IN_SYSTEM];
 struct node *cores_lookup[CORES_IN_SYSTEM];
 
+void print_available_ressources();
+void build_structure_ressources(int nb_numas, int sockets_per_numa,
+		     int chips_per_socket, int cores_per_chip);
 struct node *find_core(int coreid);
 struct node *find_chip(int chipid);
 struct node *find_socket(int socketid);
 struct node *find_numa(int numaid);
+struct node *request_any_numa();
+struct node *request_numa_id(int numa_id);
+struct node *request_any_socket();
+struct node *request_socket_id(int socket_id);
+struct node *request_any_chip();
+struct node *request_chip_id(int chip_id);
+struct node *request_any_core();
+struct node *request_core_id(int core_id);
+void remove_father(struct node* node);
+
 
 #endif

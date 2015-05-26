@@ -12,6 +12,14 @@
 
 #define MAX_NUM_CPUS 256
 
+int num_cores;
+int num_chips;
+int num_sockets;
+int num_numa;
+int sockets_per_numa;
+int chips_per_socket;
+int cores_per_chip;
+
 struct cpu_topology {
 	int numa_id;
 	int socket_id;
@@ -33,5 +41,4 @@ int get_cores_per_chip();
 void topology_init();
 void fill_topology_lookup_maps();
 void print_cpu_topology();
-void build_available_ressources();
 #endif /* !TOPOLOGY_H_ */
