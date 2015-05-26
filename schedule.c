@@ -52,6 +52,7 @@ void init_sockets(int numa_id, int sockets_per_numa,
 {
 	for( int i = 0; i< sockets_per_numa; i++) {
 		struct node *new_socket = malloc(sizeof(struct node));
+		printf("CHIPS PER SOCKETS %d\n",chips_per_socket);
 		new_socket->sons = (struct node **)malloc(
 			chips_per_socket*sizeof(struct node *));
 		new_socket->id = i + numa_id * sockets_per_numa;
@@ -113,6 +114,7 @@ struct node *request_any_numa()
 	if(CIRCLEQ_EMPTY(&runnable_numas))
 		return NULL;
 	struct node *first_numa = CIRCLEQ_FIRST(&runnable_numas); 
+
 	if(first_numa->available) {
 		first_numa->available = false;
 		for(int i = 0; i< sockets_per_numa; i++) {
@@ -228,6 +230,7 @@ struct node *request_core_id(int core_id)
 	} else
 		return NULL;
 }
+
 
 void remove_father(struct node *node)
 {
