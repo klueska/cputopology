@@ -39,10 +39,6 @@
 #include "schedule.h"
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-extern struct core_list runnable_cores; 
-extern struct chip_list runnable_chips; 
-extern struct socket_list runnable_sockets; 
-extern struct numa_list runnable_numas; 
 static void *core_proxy(void *arg)
 {
 	int core = (int)(long)arg;
@@ -73,111 +69,11 @@ int main(int argc, char **argv)
 	topology_init();
 	archinit();
 	fill_topology_lookup_maps();
-	build_structure_ressources(num_numa, num_sockets, 
+	build_structure_resources(num_numa, num_sockets, 
 				   chips_per_socket, cores_per_chip);
 	test_id_funcs();
-
-	//print_available_ressources();	
-//struct node *numa1 = request_any_numa();
-/* struct node *numa1 = request_numa_id(0);  */
-/* struct node *socket0 = request_any_socket(); */
-/* struct node *socket2 = request_socket_id(0); */
-	/* struct node *chip1 = request_chip_id(0); */
-	/* struct node *core0 = request_any_core(); */
-	printf("You request is: any available chip and core 0\n");
-	struct node *chip0 = request_any_chip();
-	struct node *core1 = request_core_id(0);
-	
-
-	/* if(numa1 == NULL) */
-	/* 	printf("The numa you required is no longer available\n"); */
-	/* else{ */
-	/* 	printf("numa id: %d, type: %d,  ", */
-	/* 	       numa1->id, numa1->type); */
-	/* 	printf("next_numa_available id: %d", */
-	/* 	       CIRCLEQ_LOOP_NEXT(&runnable_numas, */
-	/* 				 numa1, numa_link)->id); */
-	/* 	for(int i = 0 ; i< sockets_per_numa; i++) */
-	/* 		printf(", son %d type: %d", */
-	/* 		       numa1->sons[i]->id, numa1->sons[i]->type); */
-	//print_available_ressources();
-	
-
-	//struct node *numa1 = request_numa_id(0); 
-	//struct node *socket1 = request_any_socket();
-	//struct node *core1 = request_core_id(1);
-	//struct node *chip1 = request_any_chip();
-	
-
-
-	/* if(core1 == NULL) */
-	/* 	printf("The core you required is no longer available\n"); */
-	/* else{ */
-	/* 	printf("core id: %d, type: %d, father_id: %d, ", */
-	/* 	       core1->id, core1->type, core1->father->id); */
-	/* 	printf("father_type: %d,next_core_available id: %d\n", */
-	/* 	       core1->father->type, */
-	/* 	       CIRCLEQ_LOOP_NEXT(&runnable_cores, */
-	/* 				 core1, core_link)->id); */
-	/* } */
-	
-	/* if(chip1 == NULL) */
-	/* 	printf("The chip you required is no longer available\n"); */
-	/* else{ */
-	/* 	printf("chip id: %d, type: %d, father_id: %d, ", */
-	/* 	       chip1->id, chip1->type, chip1->father->id); */
-	/* 	printf("father_type: %d,next_chip_available id: %d", */
-	/* 	       chip1->father->type, */
-	/* 	       CIRCLEQ_LOOP_NEXT(&runnable_chips, */
-	/* 				 chip1, chip_link)->id); */
-	/* 	for(int i = 0 ; chip1->sons[i] != NULL; i++) */
-	/* 		printf(", son %d type: %d", */
-	/* 		       chip1->sons[i]->id, chip1->sons[i]->type); */
-	/* 	printf("\n"); */
-	/* } */
-
-	/* if(socket1 == NULL) */
-	/* 	printf("The socket you required is no longer available\n"); */
-	/* else{ */
-	/* 	printf("socket id: %d, type: %d, father_id: %d, ", */
-	/* 	       socket1->id, socket1->type, socket1->father->id); */
-	/* 	printf("father_type: %d,next_socket_available id: %d", */
-	/* 	       socket1->father->type, */
-	/* 	       CIRCLEQ_LOOP_NEXT(&runnable_sockets, */
-	/* 				 socket1, socket_link)->id); */
-	/* 	for(int i = 0 ; i< chips_per_socket; i++) */
-	/* 		printf(", son %d type: %d", */
-	/* 		       socket1->sons[i]->id, socket1->sons[i]->type); */
-	/* 	printf("\n"); */
-	/* } */
-
-	/* if(chip1 == NULL) */
-	/* 	printf("The chip you required is no longer available\n"); */
-	/* else{ */
-	/* 	printf("chip id: %d, type: %d, father_id: %d, ", */
-	/* 	       chip1->id, chip1->type, chip1->father->id); */
-	/* 	printf("father_type: %d,next_chip_available id: %d", */
-	/* 	       chip1->father->type, */
-	/* 	       CIRCLEQ_LOOP_NEXT(&runnable_chips, */
-	/* 				 chip1, chip_link)->id); */
-	/* 	for(int i = 0 ; i< cores_per_chip; i++) */
-	/* 		printf(", son %d type: %d", */
-	/* 		       chip1->sons[i]->id, chip1->sons[i]->type); */
-	/* 	printf("\n"); */
-	/* } */
-	
-	if(core1 == NULL)
-		printf("The core you required is no longer available\n");
-	else{
-		printf("core id: %d, type: %d, father_id: %d, ",
-		       core1->id, core1->type, core1->father->id);
-		printf("father_type: %d,next_core_available id: %d\n",
-		       core1->father->type,
-		       CIRCLEQ_LOOP_NEXT(&runnable_cores,
-					 core1, core_link)->id);
-	}
-
-	
+	print_available_resources();
+      
 	return 0;
 }
 
