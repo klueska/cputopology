@@ -40,12 +40,8 @@ static struct node_list node_list[] = {
 	CIRCLEQ_HEAD_INITIALIZER(node_list[NUMA])
 };
 
-/* Here are our 4 arrays of numas, sockets, chips and cores. The index is the
- * id of the considerated array. */
-static struct node **numa_lookup;
-static struct node **socket_lookup;
-static struct node **chip_lookup;
-static struct node **core_lookup;
+/* A list of lookup tables to find specific nodes by type and id. */
+static struct node **node_lookup[4];
 
 // static struct node *find_node(int id, enum node_type type)
 // {
@@ -64,19 +60,19 @@ static struct node **core_lookup;
 
 static struct node *find_numa(int numaid)
 {
-	return numa_lookup[numaid];
+	return node_lookup[NUMA][numaid];
 }
 static struct node *find_socket(int socketid)
 {
-	return socket_lookup[socketid];
+	return node_lookup[SOCKET][socketid];
 }
 static struct node *find_chip(int chipid)
 {
-	return chip_lookup[chipid];
+	return node_lookup[CHIP][chipid];
 }
 static struct node *find_core(int coreid)
 {
-	return core_lookup[coreid];
+	return node_lookup[CORE][coreid];
 }
 
 // static void init_test(int nb_numas, int sockets_per_numa, enum node_type type
@@ -142,7 +138,7 @@ static void init_cores(int chip_id)
 		/* Link the parents (chips) of each cores */
 		find_chip(chip_id)->children[i] = new_core;
 		/* Fill our socket lookup array */
-		core_lookup[new_core->id] = new_core;
+		node_lookup[CORE][new_core->id] = new_core;
 	}
 }
 
@@ -162,7 +158,7 @@ static void init_chips(int socket_id)
 		/* Link the parents (sockets) of each chips */
 		find_socket(socket_id)->children[i] = new_chip;
 		/* Fill our socket lookup array */
-		chip_lookup[new_chip->id] = new_chip;
+		node_lookup[CHIP][new_chip->id] = new_chip;
 		init_cores(new_chip->id);
 	}
 }
@@ -184,7 +180,7 @@ static void init_sockets(int numa_id)
 		/* Link the parents (numas) of each sockets */
 		find_numa(numa_id)->children[i] = new_socket;
 		/* Fill our socket lookup array */
-		socket_lookup[new_socket->id] = new_socket;
+		node_lookup[SOCKET][new_socket->id] = new_socket;
 		init_chips(new_socket->id);
 	}
 }
@@ -193,10 +189,10 @@ static void init_sockets(int numa_id)
  * call init_sockets, init_chips and init_cores. */
 void resources_init()
 {
-	numa_lookup = malloc(num_numa * sizeof(struct node*));
-	socket_lookup = malloc(num_sockets * sizeof(struct node*));
-	chip_lookup = malloc(num_chips * sizeof(struct node*));
-	core_lookup = malloc(num_cores * sizeof(struct node*));
+	node_lookup[NUMA] = malloc(num_numa * sizeof(struct node*));
+	node_lookup[SOCKET] = malloc(num_sockets * sizeof(struct node*));
+	node_lookup[CHIP] = malloc(num_chips * sizeof(struct node*));
+	node_lookup[CORE] = malloc(num_cores * sizeof(struct node*));
 
 	for (int i = 0; i< num_numa; i++) {
 		struct node *new_numa = malloc(sizeof(struct node));
@@ -209,7 +205,7 @@ void resources_init()
 		/* Link our numa to NULL (no parent) */
 		new_numa->parent = NULL;
 		/* Fill our numa lookup array */
-		numa_lookup[i] = new_numa;
+		node_lookup[NUMA][i] = new_numa;
 		init_sockets(new_numa->id);
 	}
 }
@@ -246,7 +242,7 @@ struct node *request_numa_any()
 /* Returns the numa with the id in input if available, return NULL otherwise */
 struct node *request_numa_specific(int numa_id)
 {
-	struct node *first_numa = numa_lookup[numa_id];
+	struct node *first_numa = node_lookup[NUMA][numa_id];
 	if (first_numa->available) {
 		first_numa->available = false;
 		for (int i = 0;  i< sockets_per_numa; i++) {
@@ -280,7 +276,7 @@ struct node *request_socket_any()
 /* Returns the socket with the id in input if available, return NULL otherwise */
 struct node *request_socket_specific(int socket_id)
 {
-	struct node *first_socket = socket_lookup[socket_id];
+	struct node *first_socket = node_lookup[SOCKET][socket_id];
 	if (first_socket->available) {
 		first_socket->available = false;
 		for (int i = 0; i< chips_per_socket; i++) {
@@ -316,7 +312,7 @@ struct node *request_chip_any()
  * list */
 struct node *request_chip_specific(int chip_id)
 {
-	struct node *first_chip = chip_lookup[chip_id];
+	struct node *first_chip = node_lookup[CHIP][chip_id];
 	if (first_chip->available) {
 		first_chip->available = false;
 		for (int i = 0; i< cores_per_chip; i++) {
@@ -348,7 +344,7 @@ struct node *request_core_any()
 /* Returns the core with the id in input if available, return NULL otherwise */
 struct node *request_core_specific(int core_id)
 {
-	struct node *first_core = core_lookup[core_id];
+	struct node *first_core = node_lookup[CORE][core_id];
 	if (first_core->available) {
 		first_core->available = false;
 		CIRCLEQ_REMOVE(&node_list[CORE], first_core, link);
