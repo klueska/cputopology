@@ -43,38 +43,6 @@ static struct node_list node_list[] = {
 /* A list of lookup tables to find specific nodes by type and id. */
 static struct node **node_lookup[4];
 
-// static struct node *find_node(int id, enum node_type type)
-// {
-// 	switch (type) {
-// 	case CORE:
-// 		return find_core(id);
-// 	case CHIP:
-// 		return find_chip(id);
-// 	case SOCKET:
-// 		return find_socket(id);
-// 	case NUMA:
-// 		return find_numa(id);
-// 	}
-// 	return NULL;
-// }
-
-static struct node *find_numa(int numaid)
-{
-	return node_lookup[NUMA][numaid];
-}
-static struct node *find_socket(int socketid)
-{
-	return node_lookup[SOCKET][socketid];
-}
-static struct node *find_chip(int chipid)
-{
-	return node_lookup[CHIP][chipid];
-}
-static struct node *find_core(int coreid)
-{
-	return node_lookup[CORE][coreid];
-}
-
 // static void init_test(int nb_numas, int sockets_per_numa, enum node_type type
 // 		      int chips_per_socket, int cores_per_chip)
 // {
@@ -134,9 +102,9 @@ static void init_cores(int chip_id)
 		/* Add our core to the list of available cores */
 		CIRCLEQ_INSERT_TAIL(&node_list[CORE], new_core, link);
 		/* Link our cores to their chip parent */
-		new_core->parent = find_chip(chip_id);
+		new_core->parent = node_lookup[CHIP][chip_id];
 		/* Link the parents (chips) of each cores */
-		find_chip(chip_id)->children[i] = new_core;
+		node_lookup[CHIP][chip_id]->children[i] = new_core;
 		/* Fill our socket lookup array */
 		node_lookup[CORE][new_core->id] = new_core;
 	}
@@ -154,9 +122,9 @@ static void init_chips(int socket_id)
 		/* Add our chips to the list of available chips */
 		CIRCLEQ_INSERT_TAIL(&node_list[CHIP], new_chip, link);
 		/* Link our chips to their socket parent */
-		new_chip->parent = find_socket(socket_id);
+		new_chip->parent = node_lookup[SOCKET][socket_id];
 		/* Link the parents (sockets) of each chips */
-		find_socket(socket_id)->children[i] = new_chip;
+		node_lookup[SOCKET][socket_id]->children[i] = new_chip;
 		/* Fill our socket lookup array */
 		node_lookup[CHIP][new_chip->id] = new_chip;
 		init_cores(new_chip->id);
@@ -176,9 +144,9 @@ static void init_sockets(int numa_id)
 		/* Add our sockets to the list of available sockets */
 		CIRCLEQ_INSERT_TAIL(&node_list[SOCKET], new_socket, link);
 		/* Link our sockets to their numa parent */
-		new_socket->parent = find_numa(numa_id);
+		new_socket->parent = node_lookup[NUMA][numa_id];
 		/* Link the parents (numas) of each sockets */
-		find_numa(numa_id)->children[i] = new_socket;
+		node_lookup[NUMA][numa_id]->children[i] = new_socket;
 		/* Fill our socket lookup array */
 		node_lookup[SOCKET][new_socket->id] = new_socket;
 		init_chips(new_socket->id);
