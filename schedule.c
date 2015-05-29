@@ -43,54 +43,6 @@ static struct node_list node_list[] = {
 /* A list of lookup tables to find specific nodes by type and id. */
 static struct node **node_lookup[4];
 
-// static void init_test(int nb_numas, int sockets_per_numa, enum node_type type
-// 		      int chips_per_socket, int cores_per_chip)
-// {
-// 	int counter = 0;//cores_per_chip, chips_per_socket, sockets_per_numa
-// 	int parent_id = 0;
-// 	struct node *new_core = malloc(sizeof(struct node));
-// 	new_core->id = i + chip_id * cores_per_chip;
-// 	new_core->type = CORE;
-// 	new_core->available = true;
-	
-// 	switch (type) {
-// 	case CORE:
-// 		core_lookup = (struct node **)malloc(
-// 			num_cores*sizeof(struct node*));
-// 		counter = cores_per_chip;
-// 		parent_id = chip_id;
-// 		break;
-// 	case CHIP:
-// 		lookup_array = chip_lookup;
-// 		chip_lookup = (struct node **)malloc(
-// 			num_chips*sizeof(struct node*));
-// 		parent_id = socket_id;
-// 		break;
-// 	case SOCKET:
-// 		socket_lookup = (struct node **)malloc(
-// 			num_sockets*sizeof(struct node*));
-// 		counter = sockets_per_numa;
-// 		parent_id = numa_id;
-// 		break;
-// 	case NUMA:
-// 		numa_lookup = (struct node **)malloc(
-// 			num_numa*sizeof(struct node*));
-// 		break;
-// 	}
-// 	return NULL;
-// 	for (int i = 0; i< cores_per_chip; i++) {
-
-// /\* Add our core to the list of available cores *\/
-// 		CIRCLEQ_INSERT_TAIL(&core_list, new_core, link);
-// /\* Link our cores to their chip parent *\/
-// 		new_core->parent = find_chip(chip_id);
-// /\* Link the parents (chips) of each cores *\/
-// 		find_chip(chip_id)->children[i] = new_core;
-// /\* Fil our socket lookup array *\/
-// 		core_lookup[new_core->id] = new_core;
-// 	}
-// }
-
 /* Initialize all the cores of our structure. */
 static void init_cores(int chip_id)
 {
@@ -377,3 +329,50 @@ void print_available_resources()
 	}
 }
 
+// static void init_test(int nb_numas, int sockets_per_numa, enum node_type type
+// 		      int chips_per_socket, int cores_per_chip)
+// {
+// 	int counter = 0;//cores_per_chip, chips_per_socket, sockets_per_numa
+// 	int parent_id = 0;
+// 	struct node *new_core = malloc(sizeof(struct node));
+// 	new_core->id = i + chip_id * cores_per_chip;
+// 	new_core->type = CORE;
+// 	new_core->available = true;
+	
+// 	switch (type) {
+// 	case CORE:
+// 		core_lookup = (struct node **)malloc(
+// 			num_cores*sizeof(struct node*));
+// 		counter = cores_per_chip;
+// 		parent_id = chip_id;
+// 		break;
+// 	case CHIP:
+// 		lookup_array = chip_lookup;
+// 		chip_lookup = (struct node **)malloc(
+// 			num_chips*sizeof(struct node*));
+// 		parent_id = socket_id;
+// 		break;
+// 	case SOCKET:
+// 		socket_lookup = (struct node **)malloc(
+// 			num_sockets*sizeof(struct node*));
+// 		counter = sockets_per_numa;
+// 		parent_id = numa_id;
+// 		break;
+// 	case NUMA:
+// 		numa_lookup = (struct node **)malloc(
+// 			num_numa*sizeof(struct node*));
+// 		break;
+// 	}
+// 	return NULL;
+// 	for (int i = 0; i< cores_per_chip; i++) {
+
+// /\* Add our core to the list of available cores *\/
+// 		CIRCLEQ_INSERT_TAIL(&core_list, new_core, link);
+// /\* Link our cores to their chip parent *\/
+// 		new_core->parent = find_chip(chip_id);
+// /\* Link the parents (chips) of each cores *\/
+// 		find_chip(chip_id)->children[i] = new_core;
+// /\* Fil our socket lookup array *\/
+// 		core_lookup[new_core->id] = new_core;
+// 	}
+// }
