@@ -48,13 +48,13 @@ static struct node **core_lookup;
 /* static struct node *find_node(int id, enum node_type type) */
 /* { */
 /* 	switch (type) { */
-/* 	case 0://it is a core */
+/* 	case CORE: */
 /* 		return find_core(id); */
-/* 	case 1://t is a chip */
+/* 	case CHIP: */
 /* 		return find_chip(id); */
-/* 	case 2://it is a socket */
+/* 	case SOCKET: */
 /* 		return find_socket(id); */
-/* 	case 3://it is a numa */
+/* 	case NUMA: */
 /* 		return find_numa(id); */
 /* 	} */
 /* 	return NULL; */
@@ -88,25 +88,25 @@ static struct node *find_core(int coreid)
 /* 	new_core->available = true; */
 	
 /* 	switch (type) { */
-/* 	case 0://it is a core */
+/* 	case CORE: */
 /* 		core_lookup = (struct node **)malloc( */
 /* 			num_cores*sizeof(struct node*)); */
 /* 		counter = cores_per_chip; */
 /* 		parent_id = chip_id; */
 /* 		break; */
-/* 	case 1://t is a chip */
+/* 	case CHIP: */
 /* 		lookup_array = chip_lookup; */
 /* 		chip_lookup = (struct node **)malloc( */
 /* 			num_chips*sizeof(struct node*)); */
 /* 		parent_id = socket_id; */
 /* 		break; */
-/* 	case 2://it is a socket */
+/* 	case SOCKET: */
 /* 		socket_lookup = (struct node **)malloc( */
 /* 			num_sockets*sizeof(struct node*)); */
 /* 		counter = sockets_per_numa; */
 /* 		parent_id = numa_id; */
 /* 		break; */
-/* 	case 3://it is a numa */
+/* 	case NUMA: */
 /* 		numa_lookup = (struct node **)malloc( */
 /* 			num_numa*sizeof(struct node*)); */
 /* 		break; */
@@ -231,16 +231,16 @@ static void remove_parent(struct node *node)
 		remove_parent(node->parent);
 	node->available = false;
 	switch (node->type) {
-	case 0://it is a core
+	case CORE:
 		CIRCLEQ_REMOVE(&runnable_cores, node, link);
 		break;
-	case 1://t is a chip
+	case CHIP:
 		CIRCLEQ_REMOVE(&runnable_chips, node, link);
 		break;	
-	case 2://it is a socket
+	case SOCKET:
 		CIRCLEQ_REMOVE(&runnable_sockets, node, link);
 		break;
-	case 3://it is a numa
+	case NUMA:
 		CIRCLEQ_REMOVE(&runnable_numas, node, link);
 		break;
 	}
