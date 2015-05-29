@@ -119,7 +119,7 @@ static struct node *find_core(int coreid)
 /* /\* Link our cores to their chip parent *\/ */
 /* 		new_core->parent = find_chip(chip_id); */
 /* /\* Link the parents (chips) of each cores *\/ */
-/* 		find_chip(chip_id)->child[i] = new_core; */
+/* 		find_chip(chip_id)->children[i] = new_core; */
 /* /\* Fil our socket lookup array *\/ */
 /* 		core_lookup[new_core->id] = new_core; */
 /* 	} */
@@ -138,7 +138,7 @@ static void init_cores(int chip_id, int cores_per_chip)
 /* Link our cores to their chip parent */
 		new_core->parent = find_chip(chip_id);
 /* Link the parents (chips) of each cores */
-		find_chip(chip_id)->child[i] = new_core;
+		find_chip(chip_id)->children[i] = new_core;
 /* Fil our socket lookup array */
 		core_lookup[new_core->id] = new_core;
 	}
@@ -150,7 +150,7 @@ static void init_chips(int socket_id, int chips_per_socket,
 {
 	for( int i = 0; i< chips_per_socket; i++) {
 		struct node *new_chip = malloc(sizeof(struct node));
-		new_chip->child = (struct node **)malloc(
+		new_chip->children = (struct node **)malloc(
 			cores_per_chip*sizeof(struct node*));
 		new_chip->id = i + socket_id * chips_per_socket;
 		new_chip->type = CHIP;
@@ -160,7 +160,7 @@ static void init_chips(int socket_id, int chips_per_socket,
 /* Link our chips to their socket parent */
 		new_chip->parent = find_socket(socket_id);
 /* Link the parents (sockets) of each chips */
-		find_socket(socket_id)->child[i] = new_chip;
+		find_socket(socket_id)->children[i] = new_chip;
 /* Fil our socket lookup array */
 		chip_lookup[new_chip->id] = new_chip;
 		init_cores(new_chip->id, cores_per_chip);
@@ -174,7 +174,7 @@ static void init_sockets(int numa_id, int sockets_per_numa,
 	for (int i = 0; i< sockets_per_numa; i++) {
 		struct node *new_socket = malloc(sizeof(struct node));
 		printf("CHIPS PER SOCKETS %d\n",chips_per_socket);
-		new_socket->child = (struct node **)malloc(
+		new_socket->children = (struct node **)malloc(
 			chips_per_socket*sizeof(struct node *));
 		new_socket->id = i + numa_id * sockets_per_numa;
 		new_socket->type = SOCKET;
@@ -184,7 +184,7 @@ static void init_sockets(int numa_id, int sockets_per_numa,
 /* Link our sockets to their numa parent */
 		new_socket->parent = find_numa(numa_id);
 /* Link the parents (numas) of each sockets */
-		find_numa(numa_id)->child[i] = new_socket;
+		find_numa(numa_id)->children[i] = new_socket;
 /* Fil our socket lookup array */
 		socket_lookup[new_socket->id] = new_socket;
 		init_chips(new_socket->id, chips_per_socket, cores_per_chip);
@@ -207,7 +207,7 @@ void build_structure_resources(int nb_numas, int sockets_per_numa,
 
 	for (int i = 0; i< nb_numas; i++) {
 		struct node *new_numa = malloc(sizeof(struct node));
-		new_numa->child = (struct node **)malloc(
+		new_numa->children = (struct node **)malloc(
 			sockets_per_numa*sizeof(struct node*));
 		new_numa->id = i;
 		new_numa->type = NUMA;
@@ -256,7 +256,7 @@ struct node *request_numa_any()
 	if (first_numa->available) {
 		first_numa->available = false;
 		for(int i = 0; i< sockets_per_numa; i++) {
-			request_socket_specific(first_numa->child[i]->id);
+			request_socket_specific(first_numa->children[i]->id);
 		}
 		CIRCLEQ_REMOVE(&runnable_numas, first_numa, link);
 		return first_numa;
@@ -272,7 +272,7 @@ struct node *request_numa_specific(int numa_id)
 	if (first_numa->available) {
 		first_numa->available = false;
 		for (int i = 0;  i< sockets_per_numa; i++) {
-			request_socket_specific(first_numa->child[i]->id);
+			request_socket_specific(first_numa->children[i]->id);
 		}
 		CIRCLEQ_REMOVE(&runnable_numas, first_numa, link);
 		return first_numa;
@@ -290,7 +290,7 @@ struct node *request_socket_any()
 	if (first_socket->available) {
 		first_socket->available = false;
 		for (int i = 0;  i< chips_per_socket; i++) {
-			request_chip_specific(first_socket->child[i]->id);
+			request_chip_specific(first_socket->children[i]->id);
 		}
 		CIRCLEQ_REMOVE(&runnable_sockets, first_socket, link);
 		return first_socket;
@@ -306,7 +306,7 @@ struct node *request_socket_specific(int socket_id)
 	if (first_socket->available) {
 		first_socket->available = false;
 		for (int i = 0; i< chips_per_socket; i++) {
-			request_chip_specific(first_socket->child[i]->id);
+			request_chip_specific(first_socket->children[i]->id);
 		}
 		CIRCLEQ_REMOVE(&runnable_sockets, first_socket, link);
 		return first_socket;
@@ -324,7 +324,7 @@ struct node *request_chip_any()
 	if (first_chip->available) {
 		first_chip->available = false;
 		for (int i = 0; i< cores_per_chip; i++) {
-			request_core_specific(first_chip->child[i]->id);
+			request_core_specific(first_chip->children[i]->id);
 		}
 		CIRCLEQ_REMOVE(&runnable_chips, first_chip, link);
 		return first_chip;
@@ -341,7 +341,7 @@ struct node *request_chip_specific(int chip_id)
 	if (first_chip->available) {
 		first_chip->available = false;
 		for (int i = 0; i< cores_per_chip; i++) {
-			request_core_specific(first_chip->child[i]->id);
+			request_core_specific(first_chip->children[i]->id);
 		}
 		CIRCLEQ_REMOVE(&runnable_chips, first_chip, link);
 		return first_chip;
@@ -403,7 +403,7 @@ void print_available_resources()
 					 np, link)->id);
 		for (int i = 0; i< cores_per_chip; i++)
 			printf(", son %d type: %d",
-			       np->child[i]->id, np->child[i]->type);
+			       np->children[i]->id, np->children[i]->type);
 		printf("\n");
 	}
 	
@@ -417,7 +417,7 @@ void print_available_resources()
 					 np, link)->id);
 		for (int i = 0;  i< chips_per_socket; i++)
 			printf(", son %d type: %d",
-			       np->child[i]->id, np->child[i]->type);
+			       np->children[i]->id, np->children[i]->type);
 		printf("\n");
 	}
 	
@@ -429,7 +429,7 @@ void print_available_resources()
 					 np, link)->id);
 		for (int i = 0; i< sockets_per_numa; i++)
 			printf(", son %d type: %d",
-			       np->child[i]->id, np->child[i]->type);
+			       np->children[i]->id, np->children[i]->type);
 		printf("\n");
 	}
 }

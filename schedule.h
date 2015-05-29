@@ -21,7 +21,7 @@ struct node {
 	bool available;
 	CIRCLEQ_ENTRY(node) link;
 	struct node *parent;
-	struct node **child;
+	struct node **children;
 };
 
 void print_available_resources();
