@@ -62,6 +62,7 @@ static void create_nodes(int type, int num, int child_type, int num_children)
 			n->children[j] = node_lookup[child_type][j + i * num_children];
 			n->children[j]->parent = n;
 		}
+		n->num_children = num_children;
 
 		/* Fill in the lookup table. */
 		node_lookup[type][i] = n;

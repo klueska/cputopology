@@ -22,6 +22,7 @@ struct node {
 	CIRCLEQ_ENTRY(node) link;
 	struct node *parent;
 	struct node **children;
+	int num_children;
 };
 
 void resources_init();
