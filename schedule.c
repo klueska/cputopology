@@ -50,7 +50,7 @@ static struct node *request_node_specific(int id, int type);
 static struct node *request_node_any(int type);
 
 /* Create a node and initialize it. */
-static void create_nodes(int type, int num, int child_type, int num_children)
+static void create_nodes(int type, int num, int num_children)
 {
 	/* Create the lookup table for this node type. */
 	node_lookup[type] = malloc(num * sizeof(struct node*));
@@ -65,7 +65,9 @@ static void create_nodes(int type, int num, int child_type, int num_children)
 		n->parent = NULL;
 		n->children = malloc(num_children * sizeof(struct node*));
 		for (int j = 0; j < num_children; j++) {
-			n->children[j] = node_lookup[child_type][j + i * num_children];
+			/* We know that our child_type is always 1 less than our type. We
+        	 * should eventually make this explicit in a table though. */
+			n->children[j] = node_lookup[type - 1][j + i * num_children];
 			n->children[j]->parent = n;
 		}
 		n->num_children = num_children;
@@ -80,10 +82,10 @@ static void create_nodes(int type, int num, int child_type, int num_children)
 void resources_init()
 {
 	/* Create all the nodes. */
-	create_nodes(CORE, num_cores, -1, 0);
-	create_nodes(CHIP, num_chips, CORE, cores_per_chip);
-	create_nodes(SOCKET, num_sockets, CHIP, chips_per_socket);
-	create_nodes(NUMA, num_numa, SOCKET, sockets_per_numa);
+	create_nodes(CORE, num_cores, 0);
+	create_nodes(CHIP, num_chips, cores_per_chip);
+	create_nodes(SOCKET, num_sockets, chips_per_socket);
+	create_nodes(NUMA, num_numa, sockets_per_numa);
 }
 
 /* This function is always called by a child node. It removes all of the
