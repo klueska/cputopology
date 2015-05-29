@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 20015 The Regents of the University of California
+ * Copyright (c) 2015 The Regents of the University of California
  * Valmon Leymarie <leymariv@berkeley.edu>
  * See LICENSE for details.
  */
@@ -10,8 +10,8 @@
 #include <sys/queue.h>
 #include "topology.h" 
 
-#ifndef	_SCHEDULE_
-#define	_SCHEDULE_
+#ifndef	SCHEDULE_H
+#define	SCHEDULE_H
 
 enum node_type { CORE, CHIP, SOCKET, NUMA };
 
