@@ -45,7 +45,7 @@ static struct node_list node_list[] = {
 static struct node **node_lookup[4];
 
 /* Forward declare some functions. */
-static struct node *request_node(struct node *n, int type);
+static struct node *request_node(struct node *n);
 static struct node *request_node_specific(int id, int type);
 static struct node *request_node_any(int type);
 
@@ -100,7 +100,7 @@ static void remove_parent(struct node *node)
 }
 
 /* Request a specific node by node type. */
-static struct node *request_node(struct node *n, int type)
+static struct node *request_node(struct node *n)
 {
 	if (n == NULL)
 		return NULL;
@@ -110,9 +110,9 @@ static struct node *request_node(struct node *n, int type)
 	for (int i = 0; i < n->num_children; i++) {
 		/* We know that our child_type is always 1 less than our type. We
          * should eventually make this explicit in a table though. */
-		request_node_specific(n->children[i]->id, type - 1);
+		request_node_specific(n->children[i]->id, n->type - 1);
 	}
-	CIRCLEQ_REMOVE(&node_list[type], n, link);
+	CIRCLEQ_REMOVE(&node_list[n->type], n, link);
 	remove_parent(n->parent);
 	n->available = false;
 	return n;
@@ -121,13 +121,13 @@ static struct node *request_node(struct node *n, int type)
 /* Request for any node of a given type. */
 static struct node *request_node_any(int type)
 {
-	return request_node(CIRCLEQ_FIRST(&node_list[type]), type);
+	return request_node(CIRCLEQ_FIRST(&node_list[type]));
 }
 
 /* Request a specific node by id. */
 static struct node *request_node_specific(int type, int id)
 {
-	return request_node(node_lookup[type][id], type);
+	return request_node(node_lookup[type][id]);
 }
 
 /* Returns the numa with the id in input if available, return NULL otherwise */
