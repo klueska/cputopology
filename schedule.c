@@ -38,27 +38,27 @@ struct node_list runnable_chips = CIRCLEQ_HEAD_INITIALIZER(runnable_chips);
 struct node_list runnable_sockets = CIRCLEQ_HEAD_INITIALIZER(runnable_sockets);
 struct node_list runnable_numas = CIRCLEQ_HEAD_INITIALIZER(runnable_numas);
 
-/* Here are our 4 arrays of numas, sockets, chips and cores. */
-/* The index is the id of the considerated array. */
+/* Here are our 4 arrays of numas, sockets, chips and cores. The index is the
+ * id of the considerated array. */
 static struct node **numa_lookup;
 static struct node **socket_lookup;
 static struct node **chip_lookup;
 static struct node **core_lookup;
 
-/* static struct node *find_node(int id, enum node_type type) */
-/* { */
-/* 	switch (type) { */
-/* 	case CORE: */
-/* 		return find_core(id); */
-/* 	case CHIP: */
-/* 		return find_chip(id); */
-/* 	case SOCKET: */
-/* 		return find_socket(id); */
-/* 	case NUMA: */
-/* 		return find_numa(id); */
-/* 	} */
-/* 	return NULL; */
-/* } */
+// static struct node *find_node(int id, enum node_type type)
+// {
+// 	switch (type) {
+// 	case CORE:
+// 		return find_core(id);
+// 	case CHIP:
+// 		return find_chip(id);
+// 	case SOCKET:
+// 		return find_socket(id);
+// 	case NUMA:
+// 		return find_numa(id);
+// 	}
+// 	return NULL;
+// }
 
 static struct node *find_numa(int numaid)
 {
@@ -77,53 +77,53 @@ static struct node *find_core(int coreid)
 	return core_lookup[coreid];
 }
 
-/* static void init_test(int nb_numas, int sockets_per_numa, enum node_type type */
-/* 		      int chips_per_socket, int cores_per_chip) */
-/* { */
-/* 	int counter = 0;//cores_per_chip, chips_per_socket, sockets_per_numa	 */
-/* 	int parent_id = 0; */
-/* 	struct node *new_core = malloc(sizeof(struct node)); */
-/* 	new_core->id = i + chip_id * cores_per_chip; */
-/* 	new_core->type = CORE; */
-/* 	new_core->available = true; */
+// static void init_test(int nb_numas, int sockets_per_numa, enum node_type type
+// 		      int chips_per_socket, int cores_per_chip)
+// {
+// 	int counter = 0;//cores_per_chip, chips_per_socket, sockets_per_numa
+// 	int parent_id = 0;
+// 	struct node *new_core = malloc(sizeof(struct node));
+// 	new_core->id = i + chip_id * cores_per_chip;
+// 	new_core->type = CORE;
+// 	new_core->available = true;
 	
-/* 	switch (type) { */
-/* 	case CORE: */
-/* 		core_lookup = (struct node **)malloc( */
-/* 			num_cores*sizeof(struct node*)); */
-/* 		counter = cores_per_chip; */
-/* 		parent_id = chip_id; */
-/* 		break; */
-/* 	case CHIP: */
-/* 		lookup_array = chip_lookup; */
-/* 		chip_lookup = (struct node **)malloc( */
-/* 			num_chips*sizeof(struct node*)); */
-/* 		parent_id = socket_id; */
-/* 		break; */
-/* 	case SOCKET: */
-/* 		socket_lookup = (struct node **)malloc( */
-/* 			num_sockets*sizeof(struct node*)); */
-/* 		counter = sockets_per_numa; */
-/* 		parent_id = numa_id; */
-/* 		break; */
-/* 	case NUMA: */
-/* 		numa_lookup = (struct node **)malloc( */
-/* 			num_numa*sizeof(struct node*)); */
-/* 		break; */
-/* 	} */
-/* 	return NULL; */
-/* 	for (int i = 0; i< cores_per_chip; i++) { */
+// 	switch (type) {
+// 	case CORE:
+// 		core_lookup = (struct node **)malloc(
+// 			num_cores*sizeof(struct node*));
+// 		counter = cores_per_chip;
+// 		parent_id = chip_id;
+// 		break;
+// 	case CHIP:
+// 		lookup_array = chip_lookup;
+// 		chip_lookup = (struct node **)malloc(
+// 			num_chips*sizeof(struct node*));
+// 		parent_id = socket_id;
+// 		break;
+// 	case SOCKET:
+// 		socket_lookup = (struct node **)malloc(
+// 			num_sockets*sizeof(struct node*));
+// 		counter = sockets_per_numa;
+// 		parent_id = numa_id;
+// 		break;
+// 	case NUMA:
+// 		numa_lookup = (struct node **)malloc(
+// 			num_numa*sizeof(struct node*));
+// 		break;
+// 	}
+// 	return NULL;
+// 	for (int i = 0; i< cores_per_chip; i++) {
 
-/* /\* Add our core to the list of available cores *\/ */
-/* 		CIRCLEQ_INSERT_TAIL(&runnable_cores, new_core, link); */
-/* /\* Link our cores to their chip parent *\/ */
-/* 		new_core->parent = find_chip(chip_id); */
-/* /\* Link the parents (chips) of each cores *\/ */
-/* 		find_chip(chip_id)->children[i] = new_core; */
-/* /\* Fil our socket lookup array *\/ */
-/* 		core_lookup[new_core->id] = new_core; */
-/* 	} */
-/* } */
+// /\* Add our core to the list of available cores *\/
+// 		CIRCLEQ_INSERT_TAIL(&runnable_cores, new_core, link);
+// /\* Link our cores to their chip parent *\/
+// 		new_core->parent = find_chip(chip_id);
+// /\* Link the parents (chips) of each cores *\/
+// 		find_chip(chip_id)->children[i] = new_core;
+// /\* Fil our socket lookup array *\/
+// 		core_lookup[new_core->id] = new_core;
+// 	}
+// }
 
 /* Initialize all the cores of our structure. */
 static void init_cores(int chip_id, int cores_per_chip)
@@ -133,13 +133,13 @@ static void init_cores(int chip_id, int cores_per_chip)
 		new_core->id = i + chip_id * cores_per_chip;
 		new_core->type = CORE;
 		new_core->available = true;
-/* Add our core to the list of available cores */
+		/* Add our core to the list of available cores */
 		CIRCLEQ_INSERT_TAIL(&runnable_cores, new_core, link);
-/* Link our cores to their chip parent */
+		/* Link our cores to their chip parent */
 		new_core->parent = find_chip(chip_id);
-/* Link the parents (chips) of each cores */
+		/* Link the parents (chips) of each cores */
 		find_chip(chip_id)->children[i] = new_core;
-/* Fil our socket lookup array */
+		/* Fill our socket lookup array */
 		core_lookup[new_core->id] = new_core;
 	}
 }
@@ -155,13 +155,13 @@ static void init_chips(int socket_id, int chips_per_socket,
 		new_chip->id = i + socket_id * chips_per_socket;
 		new_chip->type = CHIP;
 		new_chip->available = true;
-/* Add our chips to the list of available chips */
+		/* Add our chips to the list of available chips */
 		CIRCLEQ_INSERT_TAIL(&runnable_chips, new_chip, link);
-/* Link our chips to their socket parent */
+		/* Link our chips to their socket parent */
 		new_chip->parent = find_socket(socket_id);
-/* Link the parents (sockets) of each chips */
+		/* Link the parents (sockets) of each chips */
 		find_socket(socket_id)->children[i] = new_chip;
-/* Fil our socket lookup array */
+		/* Fill our socket lookup array */
 		chip_lookup[new_chip->id] = new_chip;
 		init_cores(new_chip->id, cores_per_chip);
 	}
@@ -179,20 +179,20 @@ static void init_sockets(int numa_id, int sockets_per_numa,
 		new_socket->id = i + numa_id * sockets_per_numa;
 		new_socket->type = SOCKET;
 		new_socket->available = true;
-/* Add our sockets to the list of available sockets */
+		/* Add our sockets to the list of available sockets */
 		CIRCLEQ_INSERT_TAIL(&runnable_sockets, new_socket, link);
-/* Link our sockets to their numa parent */
+		/* Link our sockets to their numa parent */
 		new_socket->parent = find_numa(numa_id);
-/* Link the parents (numas) of each sockets */
+		/* Link the parents (numas) of each sockets */
 		find_numa(numa_id)->children[i] = new_socket;
-/* Fil our socket lookup array */
+		/* Fill our socket lookup array */
 		socket_lookup[new_socket->id] = new_socket;
 		init_chips(new_socket->id, chips_per_socket, cores_per_chip);
 	}
 }
 
-/* Build our available resources structure. Here we initialize the numas and */
-/* call init_sockets, init_chips and init_cores. */
+/* Build our available resources structure. Here we initialize the numas and
+ * call init_sockets, init_chips and init_cores. */
 void resources_init()
 {
 	numa_lookup = (struct node **)malloc(
@@ -211,19 +211,19 @@ void resources_init()
 		new_numa->id = i;
 		new_numa->type = NUMA;
 		new_numa->available = true;
-/* Add our numas to the list of available numas */
+		/* Add our numas to the list of available numas */
 		CIRCLEQ_INSERT_TAIL(&runnable_numas, new_numa, link);
-/* Link our numa to NULL (no parent) */
+		/* Link our numa to NULL (no parent) */
 		new_numa->parent = NULL;
-/* Fil our numa lookup array */
+		/* Fill our numa lookup array */
 		numa_lookup[i] = new_numa;
 		init_sockets(new_numa->id, sockets_per_numa, 
 			     chips_per_socket, cores_per_chip);
 	}
 }
 
-/* This fucntion is always called by a core. It removes all the  */
-/* calling core's parent (chips, socket and num) from their available list. */
+/* This function is always called by a core. It removes all the calling core's
+ * parent (chips, socket and num) from their available list. */
 static void remove_parent(struct node *node)
 {
 	if (node->parent !=NULL)
@@ -245,7 +245,7 @@ static void remove_parent(struct node *node)
 	}
 }
 
-/* Returns the first available numa, returns NULL if nothing is availbale */
+/* Returns the first available numa, returns NULL if nothing is available */
 struct node *request_numa_any()
 {
 	if (CIRCLEQ_EMPTY(&runnable_numas))
@@ -332,8 +332,9 @@ struct node *request_chip_any()
 	}
 }
 
-/* Returns the chip with the id in input if available, return NULL otherwise */
-/* call request_core(core_id) on child so we remove them from the available list */
+/* Returns the chip with the id in input if available, return NULL otherwise
+ * call request_core(core_id) on child so we remove them from the available
+ * list */
 struct node *request_chip_specific(int chip_id)
 {
 	struct node *first_chip = chip_lookup[chip_id];
