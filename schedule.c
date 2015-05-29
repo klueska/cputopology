@@ -150,8 +150,7 @@ static void init_chips(int socket_id, int chips_per_socket,
 {
 	for( int i = 0; i< chips_per_socket; i++) {
 		struct node *new_chip = malloc(sizeof(struct node));
-		new_chip->children = (struct node **)malloc(
-			cores_per_chip*sizeof(struct node*));
+		new_chip->children = malloc(cores_per_chip * sizeof(struct node*));
 		new_chip->id = i + socket_id * chips_per_socket;
 		new_chip->type = CHIP;
 		new_chip->available = true;
@@ -174,8 +173,7 @@ static void init_sockets(int numa_id, int sockets_per_numa,
 	for (int i = 0; i< sockets_per_numa; i++) {
 		struct node *new_socket = malloc(sizeof(struct node));
 		printf("CHIPS PER SOCKETS %d\n",chips_per_socket);
-		new_socket->children = (struct node **)malloc(
-			chips_per_socket*sizeof(struct node *));
+		new_socket->children = malloc(chips_per_socket * sizeof(struct node*));
 		new_socket->id = i + numa_id * sockets_per_numa;
 		new_socket->type = SOCKET;
 		new_socket->available = true;
@@ -195,19 +193,14 @@ static void init_sockets(int numa_id, int sockets_per_numa,
  * call init_sockets, init_chips and init_cores. */
 void resources_init()
 {
-	numa_lookup = (struct node **)malloc(
-		num_numa*sizeof(struct node*));
-	socket_lookup = (struct node **)malloc(
-		num_sockets*sizeof(struct node*));
-	chip_lookup = (struct node **)malloc(
-		num_chips*sizeof(struct node*));
-	core_lookup = (struct node **)malloc(
-		num_cores*sizeof(struct node*));
+	numa_lookup = malloc(num_numa * sizeof(struct node*));
+	socket_lookup = malloc(num_sockets * sizeof(struct node*));
+	chip_lookup = malloc(num_chips * sizeof(struct node*));
+	core_lookup = malloc(num_cores * sizeof(struct node*));
 
 	for (int i = 0; i< num_numa; i++) {
 		struct node *new_numa = malloc(sizeof(struct node));
-		new_numa->children = (struct node **)malloc(
-			sockets_per_numa*sizeof(struct node*));
+		new_numa->children = malloc(sockets_per_numa * sizeof(struct node*));
 		new_numa->id = i;
 		new_numa->type = NUMA;
 		new_numa->available = true;
