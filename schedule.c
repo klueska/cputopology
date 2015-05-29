@@ -126,7 +126,7 @@ static struct node *find_core(int coreid)
 // }
 
 /* Initialize all the cores of our structure. */
-static void init_cores(int chip_id, int cores_per_chip)
+static void init_cores(int chip_id)
 {
 	for (int i = 0; i< cores_per_chip; i++) {
 		struct node *new_core = malloc(sizeof(struct node));
@@ -145,8 +145,7 @@ static void init_cores(int chip_id, int cores_per_chip)
 }
 
 /* Initialize all the chips of our structure. */
-static void init_chips(int socket_id, int chips_per_socket,
-		       int cores_per_chip)
+static void init_chips(int socket_id)
 {
 	for( int i = 0; i< chips_per_socket; i++) {
 		struct node *new_chip = malloc(sizeof(struct node));
@@ -162,13 +161,12 @@ static void init_chips(int socket_id, int chips_per_socket,
 		find_socket(socket_id)->children[i] = new_chip;
 		/* Fill our socket lookup array */
 		chip_lookup[new_chip->id] = new_chip;
-		init_cores(new_chip->id, cores_per_chip);
+		init_cores(new_chip->id);
 	}
 }
 
 /* Initialize all the sockets of our structure. */
-static void init_sockets(int numa_id, int sockets_per_numa,
-			 int chips_per_socket, int cores_per_chip)
+static void init_sockets(int numa_id)
 {
 	for (int i = 0; i< sockets_per_numa; i++) {
 		struct node *new_socket = malloc(sizeof(struct node));
@@ -185,7 +183,7 @@ static void init_sockets(int numa_id, int sockets_per_numa,
 		find_numa(numa_id)->children[i] = new_socket;
 		/* Fill our socket lookup array */
 		socket_lookup[new_socket->id] = new_socket;
-		init_chips(new_socket->id, chips_per_socket, cores_per_chip);
+		init_chips(new_socket->id);
 	}
 }
 
@@ -210,8 +208,7 @@ void resources_init()
 		new_numa->parent = NULL;
 		/* Fill our numa lookup array */
 		numa_lookup[i] = new_numa;
-		init_sockets(new_numa->id, sockets_per_numa, 
-			     chips_per_socket, cores_per_chip);
+		init_sockets(new_numa->id);
 	}
 }
 
