@@ -193,8 +193,7 @@ static void init_sockets(int numa_id, int sockets_per_numa,
 
 /* Build our available resources structure. Here we initialize the numas and */
 /* call init_sockets, init_chips and init_cores. */
-void build_structure_resources(int nb_numas, int sockets_per_numa,
-			       int chips_per_socket, int cores_per_chip)
+void resources_init()
 {
 	numa_lookup = (struct node **)malloc(
 		num_numa*sizeof(struct node*));
@@ -205,7 +204,7 @@ void build_structure_resources(int nb_numas, int sockets_per_numa,
 	core_lookup = (struct node **)malloc(
 		num_cores*sizeof(struct node*));
 
-	for (int i = 0; i< nb_numas; i++) {
+	for (int i = 0; i< num_numa; i++) {
 		struct node *new_numa = malloc(sizeof(struct node));
 		new_numa->children = (struct node **)malloc(
 			sockets_per_numa*sizeof(struct node*));

@@ -69,8 +69,7 @@ int main(int argc, char **argv)
 	topology_init();
 	archinit();
 	fill_topology_lookup_maps();
-	build_structure_resources(num_numa, num_sockets, 
-				   chips_per_socket, cores_per_chip);
+	resources_init();
 	test_id_funcs();
 	print_available_resources();
       

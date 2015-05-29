@@ -24,9 +24,7 @@ struct node {
 	struct node **children;
 };
 
-void print_available_resources();
-void build_structure_resources(int nb_numas, int sockets_per_numa,
-		     int chips_per_socket, int cores_per_chip);
+void resources_init();
 struct node *request_numa_any();
 struct node *request_numa_specific(int numa_id);
 struct node *request_socket_any();
@@ -35,5 +33,6 @@ struct node *request_chip_any();
 struct node *request_chip_specific(int chip_id);
 struct node *request_core_any();
 struct node *request_core_specific(int core_id);
+void print_available_resources();
 
 #endif
