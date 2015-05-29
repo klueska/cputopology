@@ -43,65 +43,28 @@ static struct node_list node_list[] = {
 /* A list of lookup tables to find specific nodes by type and id. */
 static struct node **node_lookup[4];
 
-/* Initialize all the cores of our structure. */
-static void init_cores(int chip_id)
+/* Create a node and initialize it. */
+static void create_nodes(int type, int num, int child_type, int num_children)
 {
-	for (int i = 0; i< cores_per_chip; i++) {
-		struct node *new_core = malloc(sizeof(struct node));
-		new_core->id = i + chip_id * cores_per_chip;
-		new_core->type = CORE;
-		new_core->available = true;
-		/* Add our core to the list of available cores */
-		CIRCLEQ_INSERT_TAIL(&node_list[CORE], new_core, link);
-		/* Link our cores to their chip parent */
-		new_core->parent = node_lookup[CHIP][chip_id];
-		/* Link the parents (chips) of each cores */
-		node_lookup[CHIP][chip_id]->children[i] = new_core;
-		/* Fill our socket lookup array */
-		node_lookup[CORE][new_core->id] = new_core;
-	}
-}
+	/* Create the lookup table for this node type. */
+	node_lookup[type] = malloc(num * sizeof(struct node*));
 
-/* Initialize all the chips of our structure. */
-static void init_chips(int socket_id)
-{
-	for( int i = 0; i< chips_per_socket; i++) {
-		struct node *new_chip = malloc(sizeof(struct node));
-		new_chip->children = malloc(cores_per_chip * sizeof(struct node*));
-		new_chip->id = i + socket_id * chips_per_socket;
-		new_chip->type = CHIP;
-		new_chip->available = true;
-		/* Add our chips to the list of available chips */
-		CIRCLEQ_INSERT_TAIL(&node_list[CHIP], new_chip, link);
-		/* Link our chips to their socket parent */
-		new_chip->parent = node_lookup[SOCKET][socket_id];
-		/* Link the parents (sockets) of each chips */
-		node_lookup[SOCKET][socket_id]->children[i] = new_chip;
-		/* Fill our socket lookup array */
-		node_lookup[CHIP][new_chip->id] = new_chip;
-		init_cores(new_chip->id);
-	}
-}
+	for (int i = 0; i < num; i++) {
+		/* Create and initialize all fields of each node. */
+		struct node *n = malloc(sizeof(struct node));
+		n->id = i;
+		n->type = type;
+		n->available = true;
+		CIRCLEQ_INSERT_TAIL(&node_list[type], n, link);
+		n->parent = NULL;
+		n->children = malloc(num_children * sizeof(struct node*));
+		for (int j = 0; j < num_children; j++) {
+			n->children[j] = node_lookup[child_type][j + i * num_children];
+			n->children[j]->parent = n;
+		}
 
-/* Initialize all the sockets of our structure. */
-static void init_sockets(int numa_id)
-{
-	for (int i = 0; i< sockets_per_numa; i++) {
-		struct node *new_socket = malloc(sizeof(struct node));
-		printf("CHIPS PER SOCKETS %d\n",chips_per_socket);
-		new_socket->children = malloc(chips_per_socket * sizeof(struct node*));
-		new_socket->id = i + numa_id * sockets_per_numa;
-		new_socket->type = SOCKET;
-		new_socket->available = true;
-		/* Add our sockets to the list of available sockets */
-		CIRCLEQ_INSERT_TAIL(&node_list[SOCKET], new_socket, link);
-		/* Link our sockets to their numa parent */
-		new_socket->parent = node_lookup[NUMA][numa_id];
-		/* Link the parents (numas) of each sockets */
-		node_lookup[NUMA][numa_id]->children[i] = new_socket;
-		/* Fill our socket lookup array */
-		node_lookup[SOCKET][new_socket->id] = new_socket;
-		init_chips(new_socket->id);
+		/* Fill in the lookup table. */
+		node_lookup[type][i] = n;
 	}
 }
 
@@ -109,25 +72,11 @@ static void init_sockets(int numa_id)
  * call init_sockets, init_chips and init_cores. */
 void resources_init()
 {
-	node_lookup[NUMA] = malloc(num_numa * sizeof(struct node*));
-	node_lookup[SOCKET] = malloc(num_sockets * sizeof(struct node*));
-	node_lookup[CHIP] = malloc(num_chips * sizeof(struct node*));
-	node_lookup[CORE] = malloc(num_cores * sizeof(struct node*));
-
-	for (int i = 0; i< num_numa; i++) {
-		struct node *new_numa = malloc(sizeof(struct node));
-		new_numa->children = malloc(sockets_per_numa * sizeof(struct node*));
-		new_numa->id = i;
-		new_numa->type = NUMA;
-		new_numa->available = true;
-		/* Add our numas to the list of available numas */
-		CIRCLEQ_INSERT_TAIL(&node_list[NUMA], new_numa, link);
-		/* Link our numa to NULL (no parent) */
-		new_numa->parent = NULL;
-		/* Fill our numa lookup array */
-		node_lookup[NUMA][i] = new_numa;
-		init_sockets(new_numa->id);
-	}
+	/* Create all the nodes. */
+	create_nodes(CORE, num_cores, -1, 0);
+	create_nodes(CHIP, num_chips, CORE, cores_per_chip);
+	create_nodes(SOCKET, num_sockets, CHIP, chips_per_socket);
+	create_nodes(NUMA, num_numa, SOCKET, sockets_per_numa);
 }
 
 /* This function is always called by a core. It removes all the calling core's
