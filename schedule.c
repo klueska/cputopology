@@ -31,13 +31,12 @@
 
 #include "schedule.h"
 
-/* Those lists are our 4 circular lists. If a node  */
-/* (core, chip, socket or numa) is in the corresponding list that  */
-/* means it is available and can be given to the API. */
-CIRCLEQ_HEAD(core_list, node);	
-CIRCLEQ_HEAD(chip_list, node);	
-CIRCLEQ_HEAD(socket_list, node);		
-CIRCLEQ_HEAD(numa_list, node);
+/* A list type to create our list of runnable cores, sockets, etc. */
+CIRCLEQ_HEAD(node_list, node);
+struct node_list runnable_cores = CIRCLEQ_HEAD_INITIALIZER(runnable_cores);
+struct node_list runnable_chips = CIRCLEQ_HEAD_INITIALIZER(runnable_chips);
+struct node_list runnable_sockets = CIRCLEQ_HEAD_INITIALIZER(runnable_sockets);
+struct node_list runnable_numas = CIRCLEQ_HEAD_INITIALIZER(runnable_numas);
 
 /* Here are our 4 arrays of numas, sockets, chips and cores. */
 /* The index is the id of the considerated array. */
@@ -45,11 +44,6 @@ static struct node **numa_lookup;
 static struct node **socket_lookup;
 static struct node **chip_lookup;
 static struct node **core_lookup;
-
-struct core_list runnable_cores = CIRCLEQ_HEAD_INITIALIZER(runnable_cores); 
-struct chip_list runnable_chips = CIRCLEQ_HEAD_INITIALIZER(runnable_chips);
-struct socket_list runnable_sockets = CIRCLEQ_HEAD_INITIALIZER(runnable_sockets);
-struct numa_list runnable_numas = CIRCLEQ_HEAD_INITIALIZER(runnable_numas);
 
 /* static struct node *find_node(int id, enum node_type type) */
 /* { */
