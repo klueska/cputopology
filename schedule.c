@@ -43,6 +43,11 @@ static struct node_list node_list[] = {
 /* A list of lookup tables to find specific nodes by type and id. */
 static struct node **node_lookup[4];
 
+/* Forward declare some functions. */
+static struct node *request_node(struct node *n, int type);
+static struct node *request_node_specific(int id, int type);
+static struct node *request_node_any(int type);
+
 /* Create a node and initialize it. */
 static void create_nodes(int type, int num, int child_type, int num_children)
 {
@@ -80,8 +85,9 @@ void resources_init()
 	create_nodes(NUMA, num_numa, SOCKET, sockets_per_numa);
 }
 
-/* This function is always called by a core. It removes all of the calling
- * core's parents (chips, socket and num) from their available list. */
+/* This function is always called by a child node. It removes all of the
+ * calling nodes's parents (chips, socket, numa, etc.) from their corresponding
+ * lists.  */
 static void remove_parent(struct node *node)
 {
 	if (node->parent != NULL)
@@ -90,141 +96,87 @@ static void remove_parent(struct node *node)
 	CIRCLEQ_REMOVE(&node_list[node->type], node, link);
 }
 
-/* Returns the first available numa, returns NULL if nothing is available */
+/* Request a specific node by node type. */
+static struct node *request_node(struct node *n, int type)
+{
+	if (!n->available)
+		return NULL;
+
+	for (int i = 0; i < n->num_children; i++) {
+		/* We know that our child_type is always 1 less than our type. We
+         * should eventually make this explicit in a table though. */
+		request_node_specific(n->children[i]->id, type - 1);
+	}
+	CIRCLEQ_REMOVE(&node_list[type], n, link);
+	remove_parent(n->parent);
+	n->available = false;
+	return n;
+}
+
+/* Request for any node of a given type. */
+static struct node *request_node_any(int type)
+{
+	if (CIRCLEQ_EMPTY(&node_list[type]))
+		return NULL;
+
+	struct node *n = CIRCLEQ_FIRST(&node_list[type]);
+	return request_node(n, type);
+}
+
+/* Request a specific node by id. */
+static struct node *request_node_specific(int type, int id)
+{
+	struct node *n = node_lookup[type][id];
+	return request_node(n, type);
+}
+
+/* Returns the numa with the id in input if available, return NULL otherwise */
 struct node *request_numa_any()
 {
-	if (CIRCLEQ_EMPTY(&node_list[NUMA]))
-		return NULL;
-	struct node *first_numa = CIRCLEQ_FIRST(&node_list[NUMA]); 
-
-	if (first_numa->available) {
-		first_numa->available = false;
-		for(int i = 0; i< sockets_per_numa; i++) {
-			request_socket_specific(first_numa->children[i]->id);
-		}
-		CIRCLEQ_REMOVE(&node_list[NUMA], first_numa, link);
-		return first_numa;
-	} else {
-		return NULL;
-	}
+	return request_node_any(NUMA);
 }
 
 /* Returns the numa with the id in input if available, return NULL otherwise */
 struct node *request_numa_specific(int numa_id)
 {
-	struct node *first_numa = node_lookup[NUMA][numa_id];
-	if (first_numa->available) {
-		first_numa->available = false;
-		for (int i = 0;  i< sockets_per_numa; i++) {
-			request_socket_specific(first_numa->children[i]->id);
-		}
-		CIRCLEQ_REMOVE(&node_list[NUMA], first_numa, link);
-		return first_numa;
-	} else {
-		return NULL;
-	}
+	return request_node_specific(NUMA, numa_id);
 }
 
 /* Returns the first available socket, returns NULL if nothing is availbale */
 struct node *request_socket_any()
 {
-	if (CIRCLEQ_EMPTY(&node_list[SOCKET]))
-		return NULL;
-	struct node *first_socket = CIRCLEQ_FIRST(&node_list[SOCKET]); 
-	if (first_socket->available) {
-		first_socket->available = false;
-		for (int i = 0;  i< chips_per_socket; i++) {
-			request_chip_specific(first_socket->children[i]->id);
-		}
-		CIRCLEQ_REMOVE(&node_list[SOCKET], first_socket, link);
-		return first_socket;
-	} else {
-		return NULL;
-	}
+	return request_node_any(SOCKET);
 }
 		
 /* Returns the socket with the id in input if available, return NULL otherwise */
 struct node *request_socket_specific(int socket_id)
 {
-	struct node *first_socket = node_lookup[SOCKET][socket_id];
-	if (first_socket->available) {
-		first_socket->available = false;
-		for (int i = 0; i< chips_per_socket; i++) {
-			request_chip_specific(first_socket->children[i]->id);
-		}
-		CIRCLEQ_REMOVE(&node_list[SOCKET], first_socket, link);
-		return first_socket;
-	} else {
-		return NULL;
-	}
+	return request_node_specific(SOCKET, socket_id);
 }
 
 /* Returns the first available chip, returns NULL if nothing is availbale */
 struct node *request_chip_any()
 {
-	if (CIRCLEQ_EMPTY(&node_list[CHIP]))
-		return NULL;
-	struct node *first_chip = CIRCLEQ_FIRST(&node_list[CHIP]); 
-	if (first_chip->available) {
-		first_chip->available = false;
-		for (int i = 0; i< cores_per_chip; i++) {
-			request_core_specific(first_chip->children[i]->id);
-		}
-		CIRCLEQ_REMOVE(&node_list[CHIP], first_chip, link);
-		return first_chip;
-	} else {
-		return NULL;
-	}
+	return request_node_any(CHIP);
 }
 
-/* Returns the chip with the id in input if available, return NULL otherwise
- * call request_core(core_id) on child so we remove them from the available
- * list */
+/* Returns the chip with the id in input if available, return NULL otherwise */
 struct node *request_chip_specific(int chip_id)
 {
-	struct node *first_chip = node_lookup[CHIP][chip_id];
-	if (first_chip->available) {
-		first_chip->available = false;
-		for (int i = 0; i< cores_per_chip; i++) {
-			request_core_specific(first_chip->children[i]->id);
-		}
-		CIRCLEQ_REMOVE(&node_list[CHIP], first_chip, link);
-		return first_chip;
-	} else {
-		return NULL;
-	}
+	return request_node_specific(CHIP, chip_id);
 }
 
 /* Returns the first available core, returns NULL if nothing is availbale */
 struct node *request_core_any()
 {
-	if (CIRCLEQ_EMPTY(&node_list[CORE]))
-		return NULL;
-	struct node *first_core = CIRCLEQ_FIRST(&node_list[CORE]); 
-	if (first_core->available) {
-		first_core->available = false;
-		CIRCLEQ_REMOVE(&node_list[CORE], first_core, link);
-		remove_parent(first_core);
-		return first_core;
-	} else {
-		return NULL;
-	}
+	return request_node_any(CORE);
 }
 
 /* Returns the core with the id in input if available, return NULL otherwise */
 struct node *request_core_specific(int core_id)
 {
-	struct node *first_core = node_lookup[CORE][core_id];
-	if (first_core->available) {
-		first_core->available = false;
-		CIRCLEQ_REMOVE(&node_list[CORE], first_core, link);
-		remove_parent(first_core);
-		return first_core;
-	} else {
-		return NULL;
-	}
+	return request_node_specific(CORE, core_id);
 }
-
 
 void print_available_resources()
 {		
