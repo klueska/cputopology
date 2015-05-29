@@ -19,10 +19,7 @@ struct node {
 	int id;
 	enum node_type type;
 	bool available;
-	CIRCLEQ_ENTRY(node) core_link;
-	CIRCLEQ_ENTRY(node) chip_link;
-	CIRCLEQ_ENTRY(node) socket_link;
-	CIRCLEQ_ENTRY(node) numa_link;
+	CIRCLEQ_ENTRY(node) link;
 	struct node *parent;
 	struct node **child;
 };

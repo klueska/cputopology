@@ -115,7 +115,7 @@ static struct node *find_core(int coreid)
 /* 	for (int i = 0; i< cores_per_chip; i++) { */
 
 /* /\* Add our core to the list of available cores *\/ */
-/* 		CIRCLEQ_INSERT_TAIL(&runnable_cores, new_core, core_link); */
+/* 		CIRCLEQ_INSERT_TAIL(&runnable_cores, new_core, link); */
 /* /\* Link our cores to their chip parent *\/ */
 /* 		new_core->parent = find_chip(chip_id); */
 /* /\* Link the parents (chips) of each cores *\/ */
@@ -134,7 +134,7 @@ static void init_cores(int chip_id, int cores_per_chip)
 		new_core->type = CORE;
 		new_core->available = true;
 /* Add our core to the list of available cores */
-		CIRCLEQ_INSERT_TAIL(&runnable_cores, new_core, core_link);
+		CIRCLEQ_INSERT_TAIL(&runnable_cores, new_core, link);
 /* Link our cores to their chip parent */
 		new_core->parent = find_chip(chip_id);
 /* Link the parents (chips) of each cores */
@@ -156,7 +156,7 @@ static void init_chips(int socket_id, int chips_per_socket,
 		new_chip->type = CHIP;
 		new_chip->available = true;
 /* Add our chips to the list of available chips */
-		CIRCLEQ_INSERT_TAIL(&runnable_chips, new_chip, chip_link);
+		CIRCLEQ_INSERT_TAIL(&runnable_chips, new_chip, link);
 /* Link our chips to their socket parent */
 		new_chip->parent = find_socket(socket_id);
 /* Link the parents (sockets) of each chips */
@@ -180,7 +180,7 @@ static void init_sockets(int numa_id, int sockets_per_numa,
 		new_socket->type = SOCKET;
 		new_socket->available = true;
 /* Add our sockets to the list of available sockets */
-		CIRCLEQ_INSERT_TAIL(&runnable_sockets, new_socket, socket_link);
+		CIRCLEQ_INSERT_TAIL(&runnable_sockets, new_socket, link);
 /* Link our sockets to their numa parent */
 		new_socket->parent = find_numa(numa_id);
 /* Link the parents (numas) of each sockets */
@@ -213,7 +213,7 @@ void build_structure_resources(int nb_numas, int sockets_per_numa,
 		new_numa->type = NUMA;
 		new_numa->available = true;
 /* Add our numas to the list of available numas */
-		CIRCLEQ_INSERT_TAIL(&runnable_numas, new_numa, numa_link);
+		CIRCLEQ_INSERT_TAIL(&runnable_numas, new_numa, link);
 /* Link our numa to NULL (no parent) */
 		new_numa->parent = NULL;
 /* Fil our numa lookup array */
@@ -232,16 +232,16 @@ static void remove_parent(struct node *node)
 	node->available = false;
 	switch (node->type) {
 	case 0://it is a core
-		CIRCLEQ_REMOVE(&runnable_cores, node, core_link);
+		CIRCLEQ_REMOVE(&runnable_cores, node, link);
 		break;
 	case 1://t is a chip
-		CIRCLEQ_REMOVE(&runnable_chips, node, chip_link);
+		CIRCLEQ_REMOVE(&runnable_chips, node, link);
 		break;	
 	case 2://it is a socket
-		CIRCLEQ_REMOVE(&runnable_sockets, node, socket_link);
+		CIRCLEQ_REMOVE(&runnable_sockets, node, link);
 		break;
 	case 3://it is a numa
-		CIRCLEQ_REMOVE(&runnable_numas, node, numa_link);
+		CIRCLEQ_REMOVE(&runnable_numas, node, link);
 		break;
 	}
 }
@@ -258,7 +258,7 @@ struct node *request_numa_any()
 		for(int i = 0; i< sockets_per_numa; i++) {
 			request_socket_specific(first_numa->child[i]->id);
 		}
-		CIRCLEQ_REMOVE(&runnable_numas, first_numa, numa_link);
+		CIRCLEQ_REMOVE(&runnable_numas, first_numa, link);
 		return first_numa;
 	} else {
 		return NULL;
@@ -274,7 +274,7 @@ struct node *request_numa_specific(int numa_id)
 		for (int i = 0;  i< sockets_per_numa; i++) {
 			request_socket_specific(first_numa->child[i]->id);
 		}
-		CIRCLEQ_REMOVE(&runnable_numas, first_numa, numa_link);
+		CIRCLEQ_REMOVE(&runnable_numas, first_numa, link);
 		return first_numa;
 	} else {
 		return NULL;
@@ -292,7 +292,7 @@ struct node *request_socket_any()
 		for (int i = 0;  i< chips_per_socket; i++) {
 			request_chip_specific(first_socket->child[i]->id);
 		}
-		CIRCLEQ_REMOVE(&runnable_sockets, first_socket, socket_link);
+		CIRCLEQ_REMOVE(&runnable_sockets, first_socket, link);
 		return first_socket;
 	} else {
 		return NULL;
@@ -308,7 +308,7 @@ struct node *request_socket_specific(int socket_id)
 		for (int i = 0; i< chips_per_socket; i++) {
 			request_chip_specific(first_socket->child[i]->id);
 		}
-		CIRCLEQ_REMOVE(&runnable_sockets, first_socket, socket_link);
+		CIRCLEQ_REMOVE(&runnable_sockets, first_socket, link);
 		return first_socket;
 	} else {
 		return NULL;
@@ -326,7 +326,7 @@ struct node *request_chip_any()
 		for (int i = 0; i< cores_per_chip; i++) {
 			request_core_specific(first_chip->child[i]->id);
 		}
-		CIRCLEQ_REMOVE(&runnable_chips, first_chip, chip_link);
+		CIRCLEQ_REMOVE(&runnable_chips, first_chip, link);
 		return first_chip;
 	} else {
 		return NULL;
@@ -343,7 +343,7 @@ struct node *request_chip_specific(int chip_id)
 		for (int i = 0; i< cores_per_chip; i++) {
 			request_core_specific(first_chip->child[i]->id);
 		}
-		CIRCLEQ_REMOVE(&runnable_chips, first_chip, chip_link);
+		CIRCLEQ_REMOVE(&runnable_chips, first_chip, link);
 		return first_chip;
 	} else {
 		return NULL;
@@ -358,7 +358,7 @@ struct node *request_core_any()
 	struct node *first_core = CIRCLEQ_FIRST(&runnable_cores); 
 	if (first_core->available) {
 		first_core->available = false;
-		CIRCLEQ_REMOVE(&runnable_cores, first_core, core_link);
+		CIRCLEQ_REMOVE(&runnable_cores, first_core, link);
 		remove_parent(first_core);
 		return first_core;
 	} else {
@@ -372,7 +372,7 @@ struct node *request_core_specific(int core_id)
 	struct node *first_core = core_lookup[core_id];
 	if (first_core->available) {
 		first_core->available = false;
-		CIRCLEQ_REMOVE(&runnable_cores, first_core, core_link);
+		CIRCLEQ_REMOVE(&runnable_cores, first_core, link);
 		remove_parent(first_core);
 		return first_core;
 	} else {
@@ -384,23 +384,23 @@ struct node *request_core_specific(int core_id)
 void print_available_resources()
 {		
 	struct node *np = runnable_cores.cqh_first;
-	CIRCLEQ_FOREACH(np, &runnable_cores, core_link) {
+	CIRCLEQ_FOREACH(np, &runnable_cores, link) {
 		printf("core id: %d, type: %d, parent_id: %d, ",
 		       np->id, np->type, np->parent->id);
 		printf("parent_type: %d,next_core_available id: %d\n",
 		       np->parent->type, 
 		       CIRCLEQ_LOOP_NEXT(&runnable_cores,
-					 np, core_link)->id);
+					 np, link)->id);
 	}
 	
 	np = runnable_chips.cqh_first;
-	CIRCLEQ_FOREACH(np, &runnable_chips, chip_link) {
+	CIRCLEQ_FOREACH(np, &runnable_chips, link) {
 		printf("chip id: %d, type: %d, parent_id: %d, ",
 		       np->id, np->type, np->parent->id);
 		printf("parent_type: %d,next_chip_available id: %d",
 		       np->parent->type, 
 		       CIRCLEQ_LOOP_NEXT(&runnable_chips,
-					 np, chip_link)->id);
+					 np, link)->id);
 		for (int i = 0; i< cores_per_chip; i++)
 			printf(", son %d type: %d",
 			       np->child[i]->id, np->child[i]->type);
@@ -408,13 +408,13 @@ void print_available_resources()
 	}
 	
 	np = runnable_sockets.cqh_first;
-	CIRCLEQ_FOREACH(np, &runnable_sockets, socket_link) {
+	CIRCLEQ_FOREACH(np, &runnable_sockets, link) {
 		printf("socket id: %d, type: %d, parent_id: %d, ",
 		       np->id, np->type, np->parent->id);
 		printf("parent_type: %d,next_socket_available id: %d",
 		       np->parent->type, 
 		       CIRCLEQ_LOOP_NEXT(&runnable_sockets,
-					 np, socket_link)->id);
+					 np, link)->id);
 		for (int i = 0;  i< chips_per_socket; i++)
 			printf(", son %d type: %d",
 			       np->child[i]->id, np->child[i]->type);
@@ -422,11 +422,11 @@ void print_available_resources()
 	}
 	
 	np = runnable_numas.cqh_first;
-	CIRCLEQ_FOREACH(np, &runnable_numas, numa_link) {
+	CIRCLEQ_FOREACH(np, &runnable_numas, link) {
 		printf("numa id: %d, type: %d, next_numa_available id: %d",
 		       np->id, np->type,
 		       CIRCLEQ_LOOP_NEXT(&runnable_numas,
-					 np, numa_link)->id);
+					 np, link)->id);
 		for (int i = 0; i< sockets_per_numa; i++)
 			printf(", son %d type: %d",
 			       np->child[i]->id, np->child[i]->type);
