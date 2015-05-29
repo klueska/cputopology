@@ -102,6 +102,8 @@ static void remove_parent(struct node *node)
 /* Request a specific node by node type. */
 static struct node *request_node(struct node *n, int type)
 {
+	if (n == NULL)
+		return NULL;
 	if (!n->available)
 		return NULL;
 
@@ -119,18 +121,13 @@ static struct node *request_node(struct node *n, int type)
 /* Request for any node of a given type. */
 static struct node *request_node_any(int type)
 {
-	if (CIRCLEQ_EMPTY(&node_list[type]))
-		return NULL;
-
-	struct node *n = CIRCLEQ_FIRST(&node_list[type]);
-	return request_node(n, type);
+	return request_node(CIRCLEQ_FIRST(&node_list[type]), type);
 }
 
 /* Request a specific node by id. */
 static struct node *request_node_specific(int type, int id)
 {
-	struct node *n = node_lookup[type][id];
-	return request_node(n, type);
+	return request_node(node_lookup[type][id], type);
 }
 
 /* Returns the numa with the id in input if available, return NULL otherwise */
