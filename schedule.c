@@ -373,7 +373,7 @@ struct node *request_core_specific(int core_id)
 
 void print_available_resources()
 {		
-	struct node *np = core_list.cqh_first;
+	struct node *np = NULL;
 	CIRCLEQ_FOREACH(np, &core_list, link) {
 		printf("core id: %d, type: %d, parent_id: %d, ",
 		       np->id, np->type, np->parent->id);
@@ -383,7 +383,7 @@ void print_available_resources()
 					 np, link)->id);
 	}
 	
-	np = chip_list.cqh_first;
+	np = NULL;
 	CIRCLEQ_FOREACH(np, &chip_list, link) {
 		printf("chip id: %d, type: %d, parent_id: %d, ",
 		       np->id, np->type, np->parent->id);
@@ -397,7 +397,7 @@ void print_available_resources()
 		printf("\n");
 	}
 	
-	np = socket_list.cqh_first;
+	np = NULL;
 	CIRCLEQ_FOREACH(np, &socket_list, link) {
 		printf("socket id: %d, type: %d, parent_id: %d, ",
 		       np->id, np->type, np->parent->id);
@@ -411,7 +411,7 @@ void print_available_resources()
 		printf("\n");
 	}
 	
-	np = numa_list.cqh_first;
+	np = NULL;
 	CIRCLEQ_FOREACH(np, &numa_list, link) {
 		printf("numa id: %d, type: %d, next_numa_available id: %d",
 		       np->id, np->type,
