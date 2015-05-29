@@ -79,11 +79,11 @@ void resources_init()
 	create_nodes(NUMA, num_numa, SOCKET, sockets_per_numa);
 }
 
-/* This function is always called by a core. It removes all the calling core's
- * parent (chips, socket and num) from their available list. */
+/* This function is always called by a core. It removes all of the calling
+ * core's parents (chips, socket and num) from their available list. */
 static void remove_parent(struct node *node)
 {
-	if (node->parent !=NULL)
+	if (node->parent != NULL)
 		remove_parent(node->parent);
 	node->available = false;
 	CIRCLEQ_REMOVE(&node_list[node->type], node, link);
