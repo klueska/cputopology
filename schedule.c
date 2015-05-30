@@ -106,6 +106,24 @@ static void remove_node_recursive(struct node *n)
 		remove_node_recursive(n->parent);
 }
 
+/* Attempt to reinsert a node into its list, by first dropping it's refcont.
+ * Only insert it if it's refcount has dropped to 0. */
+static void reinsert_node(struct node *n)
+{
+	n->refcount--;
+	if (n->refcount == 0)
+		CIRCLEQ_INSERT_TAIL(&node_list[n->type], n, link);
+}
+
+/* This function reinserts the calling node into its list and recursively
+ * attempts to reinsert its ancestors into their lists as well. */
+static void reinsert_node_recursive(struct node *n)
+{
+	reinsert_node(n);
+	if (n->parent != NULL)
+		reinsert_node_recursive(n->parent);
+}
+
 /* Request a specific node by node type. */
 static struct node *request_node(struct node *n)
 {
@@ -114,10 +132,23 @@ static struct node *request_node(struct node *n)
 	if (n->refcount)
 		return NULL;
 
+	if (n->num_children == 0)
+		remove_node_recursive(n);
 	for (int i = 0; i < n->num_children; i++)
 		request_node(n->children[i]);
-	remove_node_recursive(n);
 	return n;
+}
+
+/* Yield a specific node by node type. */
+static int yield_node(struct node *n)
+{
+	if (n == NULL)
+		return -1;
+	if (n->refcount != 1)
+		return -1;
+
+	reinsert_node_recursive(n);
+	return 0;
 }
 
 /* Request for any node of a given type. */
@@ -130,6 +161,12 @@ static struct node *request_node_any(int type)
 static struct node *request_node_specific(int type, int id)
 {
 	return request_node(node_lookup[type][id]);
+}
+
+/* Reinsert a specific node by id. */
+static int yield_node_specific(int type, int id)
+{
+	return yield_node(node_lookup[type][id]);
 }
 
 /* Returns the numa with the id in input if available, return NULL otherwise */
@@ -178,6 +215,12 @@ struct node *request_core_any()
 struct node *request_core_specific(int core_id)
 {
 	return request_node_specific(CORE, core_id);
+}
+
+/* Yields the specified core back to the system. */
+int yield_core_specific(int core_id)
+{
+	return yield_node_specific(CORE, core_id);
 }
 
 void print_available_resources()
