@@ -42,7 +42,7 @@ static struct node_list node_list[] = {
 };
 
 /* A list of lookup tables to find specific nodes by type and id. */
-static struct node **node_lookup[4];
+static struct node **node_lookup[NUM_NODE_TYPES];
 
 /* Forward declare some functions. */
 static struct node *request_node(struct node *n);
@@ -65,9 +65,8 @@ static void create_nodes(int type, int num, int num_children)
 		n->parent = NULL;
 		n->children = malloc(num_children * sizeof(struct node*));
 		for (int j = 0; j < num_children; j++) {
-			/* We know that our child_type is always 1 less than our type. We
-        	 * should eventually make this explicit in a table though. */
-			n->children[j] = node_lookup[type - 1][j + i * num_children];
+			n->children[j] = node_lookup[child_node_type(type)]
+			                            [j + i * num_children];
 			n->children[j]->parent = n;
 		}
 		n->num_children = num_children;
