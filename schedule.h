@@ -19,7 +19,7 @@ enum node_type { CORE, CHIP, SOCKET, NUMA };
 struct node {
 	int id;
 	enum node_type type;
-	bool available;
+	int refcount;
 	CIRCLEQ_ENTRY(node) link;
 	struct node *parent;
 	struct node **children;

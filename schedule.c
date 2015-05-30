@@ -60,7 +60,7 @@ static void create_nodes(int type, int num, int num_children)
 		struct node *n = malloc(sizeof(struct node));
 		n->id = i;
 		n->type = type;
-		n->available = true;
+		n->refcount = 0;
 		CIRCLEQ_INSERT_TAIL(&node_list[type], n, link);
 		n->parent = NULL;
 		n->children = malloc(num_children * sizeof(struct node*));
@@ -92,10 +92,9 @@ void resources_init()
  * unavailable, do nothing. */
 static void remove_node(struct node *n)
 {
-	if (n->available) {
+	if (n->refcount == 0)
 		CIRCLEQ_REMOVE(&node_list[n->type], n, link);
-		n->available = false;
-	}
+	n->refcount++;
 }
 
 /* This function removes the calling node from its list and recursively removes
@@ -112,7 +111,7 @@ static struct node *request_node(struct node *n)
 {
 	if (n == NULL)
 		return NULL;
-	if (!n->available)
+	if (n->refcount)
 		return NULL;
 
 	for (int i = 0; i < n->num_children; i++)
