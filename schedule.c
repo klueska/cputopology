@@ -88,15 +88,23 @@ void resources_init()
 	create_nodes(NUMA, num_numa, sockets_per_numa);
 }
 
-/* This function is always called by a child node. It removes all of the
- * calling nodes's parents (chips, socket, numa, etc.) from their corresponding
- * lists.  */
-static void remove_parent(struct node *node)
+/* Remove a node from its list and make it unavailable. If it is already
+ * unavailable, do nothing. */
+static void remove_node(struct node *n)
 {
-	if (node->parent != NULL)
-		remove_parent(node->parent);
-	node->available = false;
-	CIRCLEQ_REMOVE(&node_list[node->type], node, link);
+	if (n->available) {
+		CIRCLEQ_REMOVE(&node_list[n->type], n, link);
+		n->available = false;
+	}
+}
+
+/* This function removes the calling node from its list and recursively removes
+ * its ancestors from their lists as well. */
+static void remove_node_recursive(struct node *n)
+{
+	remove_node(n);
+	if (n->parent != NULL)
+		remove_node_recursive(n->parent);
 }
 
 /* Request a specific node by node type. */
@@ -107,14 +115,9 @@ static struct node *request_node(struct node *n)
 	if (!n->available)
 		return NULL;
 
-	for (int i = 0; i < n->num_children; i++) {
-		/* We know that our child_type is always 1 less than our type. We
-         * should eventually make this explicit in a table though. */
-		request_node_specific(n->children[i]->id, n->type - 1);
-	}
-	CIRCLEQ_REMOVE(&node_list[n->type], n, link);
-	remove_parent(n->parent);
-	n->available = false;
+	for (int i = 0; i < n->num_children; i++)
+		request_node(n->children[i]);
+	remove_node_recursive(n);
 	return n;
 }
 
