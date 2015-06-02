@@ -67,7 +67,7 @@ static void adjust_ids(int id_offset)
 
 void fill_topology_lookup_maps()
 {
-	int last_numa = -1, last_socket = -1, last_cpu = -1;
+	int last_numa = -1, last_socket = -1, last_chip = -1, last_core = -1;
 	for (int i=0; i<MAX_NUM_CPUS; i++) {
 		if (cpu_topology[i].online) {
 			if (cpu_topology[i].numa_id > last_numa) {
@@ -76,29 +76,30 @@ void fill_topology_lookup_maps()
 			}
 			if (cpu_topology[i].socket_id > last_socket) {
 				last_socket = cpu_topology[i].socket_id;
-				num_sockets++;
+				sockets_per_numa++;
 			}
-			if (cpu_topology[i].chip_id > last_cpu) {
-				last_cpu = cpu_topology[i].chip_id;
-				num_chips++;
+			if (cpu_topology[i].chip_id > last_chip) {
+				last_chip = cpu_topology[i].chip_id;
+				chips_per_socket++;
+			}
+			if (cpu_topology[i].core_id > last_core) {
+				last_core = cpu_topology[i].core_id;
+				cores_per_chip++;
 			}
 			hw_coreid_lookup[num_cores] = i;
 			os_coreid_lookup[i] = num_cores;
 			num_cores++;
 		}
 	}
-	sockets_per_numa = num_sockets;
-	num_sockets *= num_numa;
-	num_chips *= num_sockets;
+	num_sockets = sockets_per_numa * num_numa;
+	num_chips = chips_per_socket * num_sockets;
 }
-
 
 static void build_topology(uint32_t core_bits, uint32_t chip_bits)
 {
-	cores_per_chip = (1 << core_bits);
-	int cores_per_socket = (1 << chip_bits);
-	chips_per_socket = cores_per_socket / cores_per_chip;
-	int num_cores = (1 << (core_bits + chip_bits));
+	int max_cores_per_chip = (1 << core_bits);
+	int max_cores_per_socket = (1 << chip_bits);
+	int max_cores = (1 << (core_bits + chip_bits));
 	uint32_t apic_id = 0, core_id = 0, chip_id = 0, socket_id = 0;
 
 	int i = 0;
@@ -106,9 +107,9 @@ static void build_topology(uint32_t core_bits, uint32_t chip_bits)
 	while (temp) {
 		if (temp->type == ASlapic) {
 			apic_id = temp->lapic.id;
-			socket_id = apic_id & ~(num_cores - 1);
-			chip_id = (apic_id >> core_bits) & (cores_per_socket - 1);
-			core_id = apic_id & (cores_per_chip - 1);
+			socket_id = apic_id & ~(max_cores - 1);
+			chip_id = (apic_id >> core_bits) & (max_cores_per_socket - 1);
+			core_id = apic_id & (max_cores_per_chip - 1);
 
 			/* TODO: Build numa topology properly */
 			cpu_topology[apic_id].numa_id = 0;
