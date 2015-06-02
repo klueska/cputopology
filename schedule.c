@@ -42,7 +42,7 @@ static struct node_list node_list[] = {
 };
 
 /* A list of lookup tables to find specific nodes by type and id. */
-static struct node **node_lookup[NUM_NODE_TYPES];
+static struct node *node_lookup[NUM_NODE_TYPES];
 
 /* Forward declare some functions. */
 static struct node *request_node(struct node *n);
@@ -53,11 +53,11 @@ static struct node *request_node_any(int type);
 static void create_nodes(int type, int num, int num_children)
 {
 	/* Create the lookup table for this node type. */
-	node_lookup[type] = malloc(num * sizeof(struct node*));
+	node_lookup[type] = malloc(num * sizeof(struct node));
 
+	/* Initialize all fields of each node. */
 	for (int i = 0; i < num; i++) {
-		/* Create and initialize all fields of each node. */
-		struct node *n = malloc(sizeof(struct node));
+		struct node *n = &node_lookup[type][i];
 		n->id = i;
 		n->type = type;
 		n->refcount = 0;
@@ -65,14 +65,12 @@ static void create_nodes(int type, int num, int num_children)
 		n->parent = NULL;
 		n->children = malloc(num_children * sizeof(struct node*));
 		for (int j = 0; j < num_children; j++) {
-			n->children[j] = node_lookup[child_node_type(type)]
-			                            [j + i * num_children];
+			n->children[j] = &node_lookup[child_node_type(type)]
+			                             [j + i * num_children];
 			n->children[j]->parent = n;
 		}
 		n->num_children = num_children;
 
-		/* Fill in the lookup table. */
-		node_lookup[type][i] = n;
 	}
 }
 
@@ -159,13 +157,13 @@ static struct node *request_node_any(int type)
 /* Request a specific node by id. */
 static struct node *request_node_specific(int type, int id)
 {
-	return request_node(node_lookup[type][id]);
+	return request_node(&node_lookup[type][id]);
 }
 
 /* Reinsert a specific node by id. */
 static int yield_node_specific(int type, int id)
 {
-	return yield_node(node_lookup[type][id]);
+	return yield_node(&node_lookup[type][id]);
 }
 
 /* Returns the numa with the id in input if available, return NULL otherwise */
