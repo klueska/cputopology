@@ -86,13 +86,21 @@ void resources_init()
 	create_nodes(NUMA, num_numa, sockets_per_numa);
 }
 
+/* Update the score of all the childs of the current node. */
+/* If we are removing a node, val = 1, if we reinsert 0. */
+void update_score(struct node *n, int val) 
+{
+	n->score += val;
+	for (int j = 0; j < n->num_children; j++) {
+		update_score(n->children[j], val);
+	}
+}
 /* Remove a node from its list and make it unavailable. If it is already
  * unavailable, do nothing. */
 static void remove_node(struct node *n)
 {
-	/* if (n->refcount == 0) */
-	/* 	CIRCLEQ_REMOVE(&node_list[n->type], n, link); */
 	n->refcount++;
+	update_score(n,1);
 }
 
 /* This function removes the calling node from its list and recursively removes
@@ -109,8 +117,7 @@ static void remove_node_recursive(struct node *n)
 static void reinsert_node(struct node *n)
 {
 	n->refcount--;
-	/* if (n->refcount == 0) */
-	/* 	CIRCLEQ_INSERT_TAIL(&node_list[n->type], n, link); */
+	update_score(n,-1);
 }
 
 /* This function reinserts the calling node into its list and recursively
@@ -149,42 +156,25 @@ static int yield_node(struct node *n)
 	return 0;
 }
 
-/* Update the score of every nodes of the system. */
-/* Starting from numa level to core level */
-void update_scores() 
-{
-	struct node *np = NULL;
-	for (int i = NUMA; i >= CORE ; i--) {
-		CIRCLEQ_FOREACH(np, &node_list[i], link) {
-			if (np ->parent == NULL)
-				np->score = np->refcount;
-			else
-				np->score = np->refcount + np->parent->score;	
-		} 
-	}
-	
-}
-
 /* Returns the best node to allocate in case of a request_any_node request. */
 /* Calls update_score for now, maybe we can do the update recursively */
 /* into the remove_node and reinsert_node functions. */
 static struct node *find_best_node(int type) {
 	struct node *np = NULL;
+	struct node *best = NULL;
 	if (type == NUMA) {
 		CIRCLEQ_FOREACH(np, &node_list[type], link) 
 			if (np->refcount == 0)
-				return  np;
-		return NULL;
-	}
-	update_scores();
-	struct node *best = NULL;
-	CIRCLEQ_FOREACH(np, &node_list[type], link) {
-		if (best == NULL) {
-			if(np->refcount == 0)
 				best = np;
-		} else {
-			if (np->score > best->score && np->refcount == 0)
-				best = np;
+	} else {
+		CIRCLEQ_FOREACH(np, &node_list[type], link) {
+			if (best == NULL) {
+				if(np->refcount == 0)
+					best = np;
+			} else {
+				if (np->score > best->score && np->refcount == 0)
+					best = np;
+			}
 		}
 	}
 	return best;
@@ -266,8 +256,8 @@ void print_available_resources()
 {		
 	struct node *np = NULL;
 	CIRCLEQ_FOREACH(np, &node_list[CORE], link) {
-		printf("core id: %d, type: %d, parent_id: %d, ",
-		       np->id, np->type, np->parent->id);
+		printf("core id: %d, refcount: %d, score: %d, parent_id: %d, ",
+		       np->id, np->refcount, np->score, np->parent->id);
 		printf("parent_type: %d,next_core_available id: %d\n",
 		       np->parent->type, 
 		       CIRCLEQ_LOOP_NEXT(&node_list[CORE],
@@ -276,8 +266,8 @@ void print_available_resources()
 	
 	np = NULL;
 	CIRCLEQ_FOREACH(np, &node_list[CHIP], link) {
-		printf("chip id: %d, type: %d, parent_id: %d, ",
-		       np->id, np->type, np->parent->id);
+		printf("chip id: %d, refcount: %d, score: %d, parent_id: %d, ",
+		       np->id, np->refcount, np->score, np->parent->id);
 		printf("parent_type: %d,next_chip_available id: %d",
 		       np->parent->type, 
 		       CIRCLEQ_LOOP_NEXT(&node_list[CHIP],
@@ -290,8 +280,8 @@ void print_available_resources()
 	
 	np = NULL;
 	CIRCLEQ_FOREACH(np, &node_list[SOCKET], link) {
-		printf("socket id: %d, type: %d, parent_id: %d, ",
-		       np->id, np->type, np->parent->id);
+		printf("socket id: %d, refcount: %d, score: %d, parent_id: %d, ",
+		       np->id, np->refcount, np->score, np->parent->id);
 		printf("parent_type: %d,next_socket_available id: %d",
 		       np->parent->type, 
 		       CIRCLEQ_LOOP_NEXT(&node_list[SOCKET],
@@ -304,10 +294,8 @@ void print_available_resources()
 	
 	np = NULL;
 	CIRCLEQ_FOREACH(np, &node_list[NUMA], link) {
-		printf("numa id: %d, type: %d, next_numa_available id: %d",
-		       np->id, np->type,
-		       CIRCLEQ_LOOP_NEXT(&node_list[NUMA],
-					 np, link)->id);
+		printf("numa id: %d, refcount: %d, score: %d",
+		       np->id, np->refcount,np->score);
 		for (int i = 0; i< sockets_per_numa; i++)
 			printf(", son %d type: %d",
 			       np->children[i]->id, np->children[i]->type);
