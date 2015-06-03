@@ -71,8 +71,8 @@ int main(int argc, char **argv)
 	fill_topology_lookup_maps();
 	resources_init();
 	test_id_funcs();
-	print_available_resources();
-      
+	//print_available_resources();
+	test_structure();
 	return 0;
 }
 

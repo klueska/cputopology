@@ -61,6 +61,7 @@ static void create_nodes(int type, int num, int num_children)
 		n->id = i;
 		n->type = type;
 		n->refcount = 0;
+		n->score = 0;
 		CIRCLEQ_INSERT_TAIL(&node_list[type], n, link);
 		n->parent = NULL;
 		n->children = malloc(num_children * sizeof(struct node*));
@@ -89,8 +90,8 @@ void resources_init()
  * unavailable, do nothing. */
 static void remove_node(struct node *n)
 {
-	if (n->refcount == 0)
-		CIRCLEQ_REMOVE(&node_list[n->type], n, link);
+	/* if (n->refcount == 0) */
+	/* 	CIRCLEQ_REMOVE(&node_list[n->type], n, link); */
 	n->refcount++;
 }
 
@@ -108,8 +109,8 @@ static void remove_node_recursive(struct node *n)
 static void reinsert_node(struct node *n)
 {
 	n->refcount--;
-	if (n->refcount == 0)
-		CIRCLEQ_INSERT_TAIL(&node_list[n->type], n, link);
+	/* if (n->refcount == 0) */
+	/* 	CIRCLEQ_INSERT_TAIL(&node_list[n->type], n, link); */
 }
 
 /* This function reinserts the calling node into its list and recursively
@@ -148,10 +149,51 @@ static int yield_node(struct node *n)
 	return 0;
 }
 
+/* Update the score of every nodes of the system. */
+/* Starting from numa level to core level */
+void update_scores() 
+{
+	struct node *np = NULL;
+	for (int i = NUMA; i >= CORE ; i--) {
+		CIRCLEQ_FOREACH(np, &node_list[i], link) {
+			if (np ->parent == NULL)
+				np->score = np->refcount;
+			else
+				np->score = np->refcount + np->parent->score;	
+		} 
+	}
+	
+}
+
+/* Returns the best node to allocate in case of a request_any_node request. */
+/* Calls update_score for now, maybe we can do the update recursively */
+/* into the remove_node and reinsert_node functions. */
+static struct node *find_best_node(int type) {
+	struct node *np = NULL;
+	if (type == NUMA) {
+		CIRCLEQ_FOREACH(np, &node_list[type], link) 
+			if (np->refcount == 0)
+				return  np;
+		return NULL;
+	}
+	update_scores();
+	struct node *best = NULL;
+	CIRCLEQ_FOREACH(np, &node_list[type], link) {
+		if (best == NULL) {
+			if(np->refcount == 0)
+				best = np;
+		} else {
+			if (np->score > best->score && np->refcount == 0)
+				best = np;
+		}
+	}
+	return best;
+}
+
 /* Request for any node of a given type. */
 static struct node *request_node_any(int type)
 {
-	return request_node(CIRCLEQ_FIRST(&node_list[type]));
+	return request_node(find_best_node(type)); 
 }
 
 /* Request a specific node by id. */
@@ -273,50 +315,19 @@ void print_available_resources()
 	}
 }
 
-// static void init_test(int nb_numas, int sockets_per_numa, enum node_type type
-// 		      int chips_per_socket, int cores_per_chip)
-// {
-// 	int counter = 0;//cores_per_chip, chips_per_socket, sockets_per_numa
-// 	int parent_id = 0;
-// 	struct node *new_core = malloc(sizeof(struct node));
-// 	new_core->id = i + chip_id * cores_per_chip;
-// 	new_core->type = CORE;
-// 	new_core->available = true;
-	
-// 	switch (type) {
-// 	case CORE:
-// 		core_lookup = (struct node **)malloc(
-// 			num_cores*sizeof(struct node*));
-// 		counter = cores_per_chip;
-// 		parent_id = chip_id;
-// 		break;
-// 	case CHIP:
-// 		lookup_array = chip_lookup;
-// 		chip_lookup = (struct node **)malloc(
-// 			num_chips*sizeof(struct node*));
-// 		parent_id = socket_id;
-// 		break;
-// 	case SOCKET:
-// 		socket_lookup = (struct node **)malloc(
-// 			num_sockets*sizeof(struct node*));
-// 		counter = sockets_per_numa;
-// 		parent_id = numa_id;
-// 		break;
-// 	case NUMA:
-// 		numa_lookup = (struct node **)malloc(
-// 			num_numa*sizeof(struct node*));
-// 		break;
-// 	}
-// 	return NULL;
-// 	for (int i = 0; i< cores_per_chip; i++) {
-
-// /\* Add our core to the list of available cores *\/
-// 		CIRCLEQ_INSERT_TAIL(&core_list, new_core, link);
-// /\* Link our cores to their chip parent *\/
-// 		new_core->parent = find_chip(chip_id);
-// /\* Link the parents (chips) of each cores *\/
-// 		find_chip(chip_id)->children[i] = new_core;
-// /\* Fil our socket lookup array *\/
-// 		core_lookup[new_core->id] = new_core;
-// 	}
-// }
+void test_structure(){
+	struct node *np = request_chip_specific(0);
+	np = request_chip_specific(2);
+	np = request_core_specific(7);
+	np = request_core_any();
+	if(!np) {
+		printf("Error, unavailabe resource\n");
+	} else {
+		printf("node id: %d, type: %d, parent_id: %d, ",
+		       np->id, np->type, np->parent->id);
+		printf("parent_type: %d,next_node_available id: %d\n",
+		       np->parent->type, 
+		       CIRCLEQ_LOOP_NEXT(&node_list[CORE],
+					 np, link)->id);
+	}
+}

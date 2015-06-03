@@ -22,6 +22,7 @@ struct node {
 	int id;
 	enum node_type type;
 	int refcount;
+	int score;
 	CIRCLEQ_ENTRY(node) link;
 	struct node *parent;
 	struct node **children;
@@ -39,5 +40,5 @@ struct node *request_core_any();
 struct node *request_core_specific(int core_id);
 int yield_core_specific(int core_id);
 void print_available_resources();
-
+void test_structure();
 #endif
