@@ -252,7 +252,7 @@ int yield_core_specific(int core_id)
 	return yield_node_specific(CORE, core_id);
 }
 
-void print_available_resources()
+void print_resources()
 {		
 	struct node *np = NULL;
 	CIRCLEQ_FOREACH(np, &node_list[CORE], link) {
@@ -303,19 +303,3 @@ void print_available_resources()
 	}
 }
 
-void test_structure(){
-	struct node *np = request_chip_specific(0);
-	np = request_chip_specific(2);
-	np = request_core_specific(7);
-	np = request_core_any();
-	if(!np) {
-		printf("Error, unavailabe resource\n");
-	} else {
-		printf("node id: %d, type: %d, parent_id: %d, ",
-		       np->id, np->type, np->parent->id);
-		printf("parent_type: %d,next_node_available id: %d\n",
-		       np->parent->type, 
-		       CIRCLEQ_LOOP_NEXT(&node_list[CORE],
-					 np, link)->id);
-	}
-}

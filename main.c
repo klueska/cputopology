@@ -37,6 +37,7 @@
 #include "acpi.h"
 #include "topology.h"
 #include "schedule.h"
+#include "test_schedule.h"
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static void *core_proxy(void *arg)
@@ -45,8 +46,8 @@ static void *core_proxy(void *arg)
 	pin_to_core(core);
 
 	pthread_mutex_lock(&mutex);
-	printf("numa_domain: %3d, socketid: %3d, chipid: %3d, coreid: %3d\n",
-	       numa_domain(), socketid(), chipid(), coreid());
+	/* printf("numa_domain: %3d, socketid: %3d, chipid: %3d, coreid: %3d\n", */
+	/*        numa_domain(), socketid(), chipid(), coreid()); */
 	pthread_mutex_unlock(&mutex);
 }
 
@@ -71,8 +72,7 @@ int main(int argc, char **argv)
 	fill_topology_lookup_maps();
 	resources_init();
 	test_id_funcs();
-	test_structure();
-	print_available_resources();
+	test_schedule();
 	return 0;
 }
 

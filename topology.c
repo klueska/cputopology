@@ -92,13 +92,14 @@ void fill_topology_lookup_maps()
 		}
 	}
 	num_sockets = sockets_per_numa * num_numa;
+	cores_per_numa = sockets_per_numa * cores_per_socket;
 	num_chips = chips_per_socket * num_sockets;
 }
 
 static void build_topology(uint32_t core_bits, uint32_t chip_bits)
 {
 	int max_cores_per_chip = (1 << core_bits);
-	int max_cores_per_socket = (1 << chip_bits);
+	cores_per_socket = (1 << chip_bits);
 	int max_cores = (1 << (core_bits + chip_bits));
 	uint32_t apic_id = 0, core_id = 0, chip_id = 0, socket_id = 0;
 
@@ -108,7 +109,7 @@ static void build_topology(uint32_t core_bits, uint32_t chip_bits)
 		if (temp->type == ASlapic) {
 			apic_id = temp->lapic.id;
 			socket_id = apic_id & ~(max_cores - 1);
-			chip_id = (apic_id >> core_bits) & (max_cores_per_socket - 1);
+			chip_id = (apic_id >> core_bits) & (cores_per_socket - 1);
 			core_id = apic_id & (max_cores_per_chip - 1);
 
 			/* TODO: Build numa topology properly */

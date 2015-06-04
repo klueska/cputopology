@@ -39,6 +39,5 @@ struct node *request_chip_specific(int chip_id);
 struct node *request_core_any();
 struct node *request_core_specific(int core_id);
 int yield_core_specific(int core_id);
-void print_available_resources();
-void test_structure();
+void print_resources();
 #endif
