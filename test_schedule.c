@@ -31,6 +31,9 @@
 
 #include "test_schedule.h"
 
+
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
 /* Allocate core i of the system. Return !0 if success */
 int allocate_spec_core(int i) 
 {
@@ -356,8 +359,99 @@ void alloc_yield_numas_any()
 	}
 }
 
-/* Allocate and yield successively all cores, chips, sockets and numa of the system */
-void test_aloc_yield_all_typeofnodes()
+static void *request_core_all(void *arg)
+{
+	int core = (int)(long)arg;
+	pin_to_core(core);
+	pthread_mutex_lock(&mutex);
+	//printf("I am thread %d\n",core);
+	alloc_yield_cores_specific();
+	alloc_yield_cores_any();
+	alloc_yield_chips_specific();
+	alloc_yield_chips_any();
+	alloc_yield_sockets_specific();
+	alloc_yield_sockets_any();
+	alloc_yield_numas_specific();
+	alloc_yield_numas_any();
+	pthread_mutex_unlock(&mutex);
+}
+
+static void *request_core3(void *arg)
+{
+	int core = (int)(long)arg;
+	pin_to_core(core);
+	pthread_mutex_lock(&mutex);
+	struct node *n = request_core_specific(3);
+	printf("I am thread %d and ",core);
+	if( n!= NULL)
+		printf("I got core %d\n", n->id);
+	else
+		printf("I can't get core %d\n", 3);
+	pthread_mutex_unlock(&mutex);
+}
+
+static void *request_chip1(void *arg)
+{
+	int core = (int)(long)arg;
+	pin_to_core(core);
+	pthread_mutex_lock(&mutex);
+	struct node *n = request_chip_specific(1);
+	printf("I am thread %d and ",core);
+	if( n!= NULL)
+		printf("I got chip %d\n", n->id);
+	else
+		printf("I can't get chip %d\n", 1);
+	pthread_mutex_unlock(&mutex);
+}
+
+static void *request_chip2(void *arg)
+{
+	int core = (int)(long)arg;
+	pin_to_core(core);
+	pthread_mutex_lock(&mutex);
+	struct node *n = request_chip_specific(2);
+	printf("I am thread %d and ",core);
+	if( n!= NULL)
+		printf("I got chip %d\n", n->id);
+	else
+		printf("I can't get chip %d\n", 2);
+	pthread_mutex_unlock(&mutex);
+}
+
+static void *request_socket0(void *arg)
+{
+	int core = (int)(long)arg;
+	pin_to_core(core);
+	pthread_mutex_lock(&mutex);
+	struct node *n = request_socket_specific(0);
+	printf("I am thread %d and ",core);
+	if( n!= NULL)
+		printf("I got socket %d\n", n->id);
+	else
+		printf("I can't get socket %d\n", 0);
+	pthread_mutex_unlock(&mutex);
+}
+
+/* Successively allocate and yield all cores, chips, sockets and numa of the  */
+/* system. Here we do either specific and any allocation on a 4-threaded */
+/* progam. */
+void test_schedule_dynamic()
+{
+	int nb_threads = 4;
+	pthread_t pthread[nb_threads];
+	for (int i=0; i<nb_threads; i++) {
+		pthread_create(&pthread[i], NULL, request_core_all, (void*)(long)i);
+	}
+	for (int i=0; i<nb_threads; i++) {
+		pthread_join(pthread[i], NULL);
+	}
+
+}
+
+/* Successively allocate and yield all cores, chips, sockets and numa of the  */
+/* system. Here we do either specific and any allocation on a single threaded */
+/* progam. */
+void test_schedule_static()
 {
 	alloc_yield_cores_specific();
 	alloc_yield_cores_any();
@@ -369,8 +463,25 @@ void test_aloc_yield_all_typeofnodes()
 	alloc_yield_numas_any();
 }
 
+/* For now ask for core3, chip1, chip2 and socket0. We can see if everything is  */
+/* all right thanks to the print. Not the best option though.  */
+void test_schedule_dynamic_exp()
+{
+	int nb_threads = 4;
+	pthread_t pthread[nb_threads];
+	pthread_create(&pthread[0], NULL, request_core3, (void*)(long)0);
+	pthread_create(&pthread[1], NULL, request_chip1, (void*)(long)1);
+	pthread_create(&pthread[2], NULL, request_chip2, (void*)(long)2);
+	pthread_create(&pthread[3], NULL, request_socket0, (void*)(long)3);
+	for (int i=0; i<nb_threads; i++) {
+		pthread_join(pthread[i], NULL);
+	}
+
+}
+
 void test_schedule()
 {
-	test_aloc_yield_all_typeofnodes();
-	
+	test_schedule_static();
+	test_schedule_dynamic();
+	test_schedule_dynamic_exp();
 }

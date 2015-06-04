@@ -5,12 +5,15 @@
  * See LICENSE for details.
  */
 
+#include <sys/sysinfo.h>
+#include <pthread.h>
+#include <stdio.h>
 #include "schedule.h" 
 #include "topology.h"
+#include "arch.h"
 
 #ifndef	TEST_STRUCT_H
 #define	TEST_STRUCT_H
 
 void test_schedule();
-
 #endif
