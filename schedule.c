@@ -93,38 +93,23 @@ void update_score(struct node *n, int val)
 		update_score(n->children[j], val);
 	}
 }
-/* Remove a node from its list and make it unavailable. If it is already
- * unavailable, do nothing. */
-static void remove_node(struct node *n)
+
+/* Recursively incref a node from its level through its ancestors. */
+static void incref_node_recursive(struct node *n)
 {
 	n->refcount++;
 	update_score(n,1);
-}
-
-/* This function removes the calling node from its list and recursively removes
- * its ancestors from their lists as well. */
-static void remove_node_recursive(struct node *n)
-{
-	remove_node(n);
 	if (n->parent != NULL)
-		remove_node_recursive(n->parent);
+		incref_node_recursive(n->parent);
 }
 
-/* Attempt to reinsert a node into its list, by first dropping it's refcont.
- * Only insert it if it's refcount has dropped to 0. */
-static void reinsert_node(struct node *n)
+/* Recursively decref a node from its level through its ancestors. */
+static void decref_node_recursive(struct node *n)
 {
 	n->refcount--;
 	update_score(n,-1);
-}
-
-/* This function reinserts the calling node into its list and recursively
- * attempts to reinsert its ancestors into their lists as well. */
-static void reinsert_node_recursive(struct node *n)
-{
-	reinsert_node(n);
 	if (n->parent != NULL)
-		reinsert_node_recursive(n->parent);
+		decref_node_recursive(n->parent);
 }
 
 /* Request a specific node by node type. */
@@ -136,7 +121,7 @@ static struct node *request_node(struct node *n)
 		return NULL;
 
 	if (n->num_children == 0)
-		remove_node_recursive(n);
+		incref_node_recursive(n);
 	for (int i = 0; i < n->num_children; i++)
 		request_node(n->children[i]);
 	return n;
@@ -150,7 +135,7 @@ static int yield_node(struct node *n)
 	if (n->refcount != 1)
 		return -1;
 
-	reinsert_node_recursive(n);
+	decref_node_recursive(n);
 	return 0;
 }
 
