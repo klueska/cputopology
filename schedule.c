@@ -32,14 +32,6 @@
 
 #include "schedule.h"
 
-/* A list of our allocatable cores, chips, sockets and numa domains. */
-CIRCLEQ_HEAD(node_list, node);
-static struct node_list node_list[] = {
-	CIRCLEQ_HEAD_INITIALIZER(node_list[CORE]),
-	CIRCLEQ_HEAD_INITIALIZER(node_list[CHIP]),
-	CIRCLEQ_HEAD_INITIALIZER(node_list[SOCKET]),
-	CIRCLEQ_HEAD_INITIALIZER(node_list[NUMA])
-};
 /* An array containing the number of nodes at each level. */
 static int num_nodes[NUM_NODE_TYPES];
 
@@ -65,7 +57,6 @@ static void create_nodes(int type, int num, int num_children)
 		n->type = type;
 		n->refcount = 0;
 		n->score = 0;
-		CIRCLEQ_INSERT_TAIL(&node_list[type], n, link);
 		n->parent = NULL;
 		n->children = malloc(num_children * sizeof(struct node*));
 		for (int j = 0; j < num_children; j++) {
@@ -74,7 +65,6 @@ static void create_nodes(int type, int num, int num_children)
 			n->children[j]->parent = n;
 		}
 		n->num_children = num_children;
-
 	}
 }
 
@@ -233,54 +223,37 @@ int yield_core_specific(int core_id)
 	return yield_node_specific(CORE, core_id);
 }
 
-void print_resources()
-{		
-	struct node *np = NULL;
-	CIRCLEQ_FOREACH(np, &node_list[CORE], link) {
-		printf("core id: %d, refcount: %d, score: %d, parent_id: %d, ",
-		       np->id, np->refcount, np->score, np->parent->id);
-		printf("parent_type: %d,next_core_available id: %d\n",
-		       np->parent->type, 
-		       CIRCLEQ_LOOP_NEXT(&node_list[CORE],
-					 np, link)->id);
-	}
-	
-	np = NULL;
-	CIRCLEQ_FOREACH(np, &node_list[CHIP], link) {
-		printf("chip id: %d, refcount: %d, score: %d, parent_id: %d, ",
-		       np->id, np->refcount, np->score, np->parent->id);
-		printf("parent_type: %d,next_chip_available id: %d",
-		       np->parent->type, 
-		       CIRCLEQ_LOOP_NEXT(&node_list[CHIP],
-					 np, link)->id);
-		for (int i = 0; i< cores_per_chip; i++)
-			printf(", son %d type: %d",
-			       np->children[i]->id, np->children[i]->type);
-		printf("\n");
-	}
-	
-	np = NULL;
-	CIRCLEQ_FOREACH(np, &node_list[SOCKET], link) {
-		printf("socket id: %d, refcount: %d, score: %d, parent_id: %d, ",
-		       np->id, np->refcount, np->score, np->parent->id);
-		printf("parent_type: %d,next_socket_available id: %d",
-		       np->parent->type, 
-		       CIRCLEQ_LOOP_NEXT(&node_list[SOCKET],
-					 np, link)->id);
-		for (int i = 0;  i< chips_per_socket; i++)
-			printf(", son %d type: %d",
-			       np->children[i]->id, np->children[i]->type);
-		printf("\n");
-	}
-	
-	np = NULL;
-	CIRCLEQ_FOREACH(np, &node_list[NUMA], link) {
-		printf("numa id: %d, refcount: %d, score: %d",
-		       np->id, np->refcount,np->score);
-		for (int i = 0; i< sockets_per_numa; i++)
-			printf(", son %d type: %d",
-			       np->children[i]->id, np->children[i]->type);
+void print_node(struct node *n)
+{
+	printf("%s id: %d, type: %d, refcount: %d, score %d, num_children: %d",
+	       node_label[n->type], n->id, n->type,
+	       n->refcount, n->score, n->num_children);
+	if (n->parent) {
+		printf(", parent_id: %d, parent_type: %d\n",
+		       n->parent->id, n->parent->type);
+	} else {
 		printf("\n");
 	}
 }
 
+void print_nodes(int type)
+{
+	struct node *n = NULL;
+	for (int i = 0; i < num_nodes[type]; i++) {
+		print_node(&node_lookup[type][i]);
+	}
+}
+
+void print_all_nodes()
+{
+	for (int i = NUMA; i >= CORE; i--)
+		print_nodes(i);
+}
+
+void test_structure(){
+	request_chip_specific(0);
+	request_chip_specific(2);
+	request_core_specific(7);
+	request_core_any();
+	print_all_nodes();
+}

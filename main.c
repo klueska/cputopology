@@ -72,6 +72,7 @@ int main(int argc, char **argv)
 	fill_topology_lookup_maps();
 	nodes_init();
 	test_id_funcs();
+	test_structure();
 	test_schedule();
 	return 0;
 }

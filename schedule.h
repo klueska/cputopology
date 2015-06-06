@@ -24,7 +24,6 @@ struct node {
 	enum node_type type;
 	int refcount;
 	int score;
-	CIRCLEQ_ENTRY(node) link;
 	struct node *parent;
 	struct node **children;
 	int num_children;
@@ -40,6 +39,9 @@ struct node *request_chip_specific(int chip_id);
 struct node *request_core_any();
 struct node *request_core_specific(int core_id);
 int yield_core_specific(int core_id);
-void print_resources();
+void print_node(struct node *n);
+void print_nodes(int type);
+void print_all_nodes();
+void test_structure();
 
 #endif
