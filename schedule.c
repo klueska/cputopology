@@ -45,7 +45,7 @@ static struct node *alloc_node_specific(int id, int type);
 static struct node *alloc_node_any(int type);
 
 /* Create a node and initialize it. */
-static void create_nodes(int type, int num, int num_children)
+static void init_nodes(int type, int num, int num_children)
 {
 	/* Initialize the lookup tables for this node type. */
 	int node_offset = 0;
@@ -77,10 +77,10 @@ void nodes_init()
 	node_list = malloc(total_nodes * sizeof(struct node));
 
 	/* Initialize the nodes at each level in our hierarchy. */
-	create_nodes(CORE, num_cores, 0);
-	create_nodes(CHIP, num_chips, cores_per_chip);
-	create_nodes(SOCKET, num_sockets, chips_per_socket);
-	create_nodes(NUMA, num_numa, sockets_per_numa);
+	init_nodes(CORE, num_cores, 0);
+	init_nodes(CHIP, num_chips, cores_per_chip);
+	init_nodes(SOCKET, num_sockets, chips_per_socket);
+	init_nodes(NUMA, num_numa, sockets_per_numa);
 }
 
 /* Update the score of every node in the topology. */
