@@ -36,6 +36,7 @@
 static int num_nodes[NUM_NODE_TYPES];
 
 /* A list of lookup tables to find specific nodes by type and id. */
+static int total_nodes;
 static struct node *node_list;
 static struct node *node_lookup[NUM_NODE_TYPES];
 
@@ -73,7 +74,7 @@ static void init_nodes(int type, int num, int num_children)
 void nodes_init()
 {
 	/* Allocate a flat array of nodes. */
-	int total_nodes = num_cores + num_chips + num_sockets + num_numa;
+	total_nodes = num_cores + num_chips + num_sockets + num_numa;
 	node_list = malloc(total_nodes * sizeof(struct node));
 
 	/* Initialize the nodes at each level in our hierarchy. */
@@ -87,14 +88,12 @@ void nodes_init()
 static void update_scores()
 {
 	struct node *n = NULL;
-	for (int i = NUMA; i >= CORE; i--) {
-		for (int j = 0; j < num_nodes[i]; j++) {
-			n = &node_lookup[i][j];
-			if (n->parent == NULL)
-				n->score = n->refcount;
-			else
-				n->score = n->refcount + n->parent->score;
-		}
+	for (int i = total_nodes - 1; i >= 0; i--) {
+		n = &node_list[i];
+		if (n->parent == NULL)
+			n->score = n->refcount;
+		else
+			n->score = n->refcount + n->parent->score;
 	}
 }
 
