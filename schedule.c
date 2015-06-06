@@ -109,17 +109,19 @@ static struct node *find_best_node(int type) {
 /* Recursively incref a node from its level through its ancestors. */
 static void incref_node_recursive(struct node *n)
 {
-	n->refcount++;
-	if (n->parent != NULL)
-		incref_node_recursive(n->parent);
+	do {
+		n->refcount++;
+		n = n->parent;
+	} while (n != NULL);
 }
 
 /* Recursively decref a node from its level through its ancestors. */
 static void decref_node_recursive(struct node *n)
 {
-	n->refcount--;
-	if (n->parent != NULL)
-		decref_node_recursive(n->parent);
+	do {
+		n->refcount--;
+		n = n->parent;
+	} while (n != NULL);
 }
 
 /* Allocate a specific node. */
