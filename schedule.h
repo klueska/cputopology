@@ -25,7 +25,7 @@ struct node {
 	int refcount;
 	int score;
 	struct node *parent;
-	struct node **children;
+	struct node *children;
 	int num_children;
 };
 

@@ -58,12 +58,9 @@ static void create_nodes(int type, int num, int num_children)
 		n->refcount = 0;
 		n->score = 0;
 		n->parent = NULL;
-		n->children = malloc(num_children * sizeof(struct node*));
-		for (int j = 0; j < num_children; j++) {
-			n->children[j] = &node_lookup[child_node_type(type)]
-			                             [j + i * num_children];
-			n->children[j]->parent = n;
-		}
+		n->children = &node_lookup[child_node_type(type)][i * num_children];
+		for (int j = 0; j < num_children; j++)
+			n->children[j].parent = n;
 		n->num_children = num_children;
 	}
 }
@@ -136,7 +133,7 @@ static struct node *alloc_node(struct node *n)
 	if (n->num_children == 0)
 		incref_node_recursive(n);
 	for (int i = 0; i < n->num_children; i++)
-		alloc_node(n->children[i]);
+		alloc_node(&n->children[i]);
 	return n;
 }
 
