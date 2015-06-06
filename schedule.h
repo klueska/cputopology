@@ -23,7 +23,6 @@ struct node {
 	int id;
 	enum node_type type;
 	int refcount;
-	int score;
 	struct node *parent;
 	struct node *children;
 };

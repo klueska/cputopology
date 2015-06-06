@@ -70,7 +70,6 @@ static void init_nodes(int type, int num, int nchildren)
 		n->id = i;
 		n->type = type;
 		n->refcount = 0;
-		n->score = 0;
 		n->parent = NULL;
 		n->children = &node_lookup[child_node_type(type)][i * nchildren];
 		for (int j = 0; j < nchildren; j++)
@@ -92,29 +91,30 @@ void nodes_init()
 	init_nodes(NUMA, num_numa, sockets_per_numa);
 }
 
-/* Update the score of every node in the topology. */
-static void update_scores()
-{
-	struct node *n = NULL;
-	for (int i = total_nodes - 1; i >= 0; i--) {
-		n = &node_list[i];
-		if (n->parent == NULL)
-			n->score = n->refcount;
-		else
-			n->score = n->refcount + n->parent->score;
-	}
-}
-
 /* Returns the best node to allocate in case alloc_any_node() is called. */
-static struct node *find_best_node(int type) {
-	struct node *n = NULL;
+static struct node *find_best_node(int type)
+{
+	int best_refcount = 0;
 	struct node *bestn = NULL;
-	for (int i = 0; i < num_nodes[type]; i++) {
-		n = &node_lookup[type][i];
-		if (n->refcount == 0) {
-			if (bestn == NULL || n->score > bestn->score)
+	struct node *n = NULL;
+	struct node *siblings = node_lookup[NUMA];
+	int num_siblings = 1;
+
+	for (int i = NUMA; i >= type; i--) {
+		for (int j = 0; j < num_siblings; j++) {
+			n = &siblings[j];
+			if (n->refcount >= best_refcount &&
+			    n->refcount < max_refcount[i]) {
+				best_refcount = n->refcount;
 				bestn = n;
+			}
 		}
+		if (i == type || bestn == NULL)
+			break;
+		siblings = bestn->children;
+		num_siblings = num_children[i];
+		best_refcount = 0;
+		bestn = NULL;
 	}
 	return bestn;
 }
@@ -126,7 +126,6 @@ static void incref_node_recursive(struct node *n)
 		n->refcount++;
 		n = n->parent;
 	} while (n != NULL);
-	update_scores();
 }
 
 /* Recursively decref a node from its level through its ancestors. */
@@ -235,9 +234,9 @@ int free_core_specific(int core_id)
 
 void print_node(struct node *n)
 {
-	printf("%s id: %d, type: %d, refcount: %d, score %d, num_children: %d",
+	printf("%s id: %d, type: %d, refcount: %d, num_children: %d",
 	       node_label[n->type], n->id, n->type,
-	       n->refcount, n->score, num_children[n->type]);
+	       n->refcount, num_children[n->type]);
 	if (n->parent) {
 		printf(", parent_id: %d, parent_type: %d\n",
 		       n->parent->id, n->parent->type);
