@@ -75,11 +75,9 @@ static void create_nodes(int type, int num, int num_children)
 	}
 }
 
-/* Build our available resources structure. Here we initialize the numas and
- * call init_sockets, init_chips and init_cores. */
-void resources_init()
+/* Build our available nodes structure. */
+void nodes_init()
 {
-	/* Create all the nodes. */
 	create_nodes(CORE, num_cores, 0);
 	create_nodes(CHIP, num_chips, cores_per_chip);
 	create_nodes(SOCKET, num_sockets, chips_per_socket);

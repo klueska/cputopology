@@ -29,7 +29,7 @@ struct node {
 	int num_children;
 };
 
-void resources_init();
+void nodes_init();
 struct node *request_numa_any();
 struct node *request_numa_specific(int numa_id);
 struct node *request_socket_any();
@@ -40,4 +40,5 @@ struct node *request_core_any();
 struct node *request_core_specific(int core_id);
 int yield_core_specific(int core_id);
 void print_resources();
+
 #endif

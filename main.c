@@ -70,7 +70,7 @@ int main(int argc, char **argv)
 	topology_init();
 	archinit();
 	fill_topology_lookup_maps();
-	resources_init();
+	nodes_init();
 	test_id_funcs();
 	test_schedule();
 	return 0;
