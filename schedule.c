@@ -234,11 +234,11 @@ int free_core_specific(int core_id)
 
 void print_node(struct node *n)
 {
-	printf("%s id: %d, type: %d, refcount: %d, num_children: %d",
+	printf("%-6s id: %2d, type: %d, refcount: %2d, num_children: %2d",
 	       node_label[n->type], n->id, n->type,
 	       n->refcount, num_children[n->type]);
 	if (n->parent) {
-		printf(", parent_id: %d, parent_type: %d\n",
+		printf(", parent_id: %2d, parent_type: %d\n",
 		       n->parent->id, n->parent->type);
 	} else {
 		printf("\n");
