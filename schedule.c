@@ -36,6 +36,7 @@
 static int num_nodes[NUM_NODE_TYPES];
 
 /* A list of lookup tables to find specific nodes by type and id. */
+static struct node *node_list;
 static struct node *node_lookup[NUM_NODE_TYPES];
 
 /* Forward declare some functions. */
@@ -47,8 +48,11 @@ static struct node *alloc_node_any(int type);
 static void create_nodes(int type, int num, int num_children)
 {
 	/* Initialize the lookup tables for this node type. */
+	int node_offset = 0;
+	for (int i = 0; i < type; i++)
+		node_offset += num_nodes[i];
+	node_lookup[type] = &node_list[node_offset];
 	num_nodes[type] = num;
-	node_lookup[type] = malloc(num * sizeof(struct node));
 
 	/* Initialize all fields of each node. */
 	for (int i = 0; i < num; i++) {
@@ -68,6 +72,11 @@ static void create_nodes(int type, int num, int num_children)
 /* Build our available nodes structure. */
 void nodes_init()
 {
+	/* Allocate a flat array of nodes. */
+	int total_nodes = num_cores + num_chips + num_sockets + num_numa;
+	node_list = malloc(total_nodes * sizeof(struct node));
+
+	/* Initialize the nodes at each level in our hierarchy. */
 	create_nodes(CORE, num_cores, 0);
 	create_nodes(CHIP, num_chips, cores_per_chip);
 	create_nodes(SOCKET, num_sockets, chips_per_socket);
