@@ -30,15 +30,16 @@ struct node {
 };
 
 void nodes_init();
-struct node *request_numa_any();
-struct node *request_numa_specific(int numa_id);
-struct node *request_socket_any();
-struct node *request_socket_specific(int socket_id);
-struct node *request_chip_any();
-struct node *request_chip_specific(int chip_id);
-struct node *request_core_any();
-struct node *request_core_specific(int core_id);
-int yield_core_specific(int core_id);
+struct node *alloc_numa_any();
+struct node *alloc_numa_specific(int numa_id);
+struct node *alloc_socket_any();
+struct node *alloc_socket_specific(int socket_id);
+struct node *alloc_chip_any();
+struct node *alloc_chip_specific(int chip_id);
+struct node *alloc_core_any();
+struct node *alloc_core_specific(int core_id);
+int free_core_specific(int core_id);
+
 void print_node(struct node *n);
 void print_nodes(int type);
 void print_all_nodes();

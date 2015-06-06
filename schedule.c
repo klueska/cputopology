@@ -39,9 +39,9 @@ static int num_nodes[NUM_NODE_TYPES];
 static struct node *node_lookup[NUM_NODE_TYPES];
 
 /* Forward declare some functions. */
-static struct node *request_node(struct node *n);
-static struct node *request_node_specific(int id, int type);
-static struct node *request_node_any(int type);
+static struct node *alloc_node(struct node *n);
+static struct node *alloc_node_specific(int id, int type);
+static struct node *alloc_node_any(int type);
 
 /* Create a node and initialize it. */
 static void create_nodes(int type, int num, int num_children)
@@ -92,7 +92,7 @@ static void update_scores()
 	}
 }
 
-/* Returns the best node to allocate in case request_any_node() is called. */
+/* Returns the best node to allocate in case alloc_any_node() is called. */
 static struct node *find_best_node(int type) {
 	struct node *n = NULL;
 	struct node *bestn = NULL;
@@ -122,8 +122,8 @@ static void decref_node_recursive(struct node *n)
 		decref_node_recursive(n->parent);
 }
 
-/* Request a specific node by node type. */
-static struct node *request_node(struct node *n)
+/* Allocate a specific node. */
+static struct node *alloc_node(struct node *n)
 {
 	if (n == NULL)
 		return NULL;
@@ -135,12 +135,12 @@ static struct node *request_node(struct node *n)
 		update_scores();
 	}
 	for (int i = 0; i < n->num_children; i++)
-		request_node(n->children[i]);
+		alloc_node(n->children[i]);
 	return n;
 }
 
-/* Yield a specific node by node type. */
-static int yield_node(struct node *n)
+/* Free a specific node. */
+static int free_node(struct node *n)
 {
 	if (n == NULL)
 		return -1;
@@ -151,76 +151,72 @@ static int yield_node(struct node *n)
 	return 0;
 }
 
-/* Request for any node of a given type. */
-static struct node *request_node_any(int type)
+/* Allocates the *best* node from our node structure. *Best* could have
+ * different interpretations, but currently it means to allocate nodes as
+ * tightly packed as possible.  All ancestors of the chosen node will be
+ * increfed in the process, effectively allocating them as well. */
+static struct node *alloc_node_any(int type)
 {
-	return request_node(find_best_node(type)); 
+	return alloc_node(find_best_node(type));
 }
 
-/* Request a specific node by id. */
-static struct node *request_node_specific(int type, int id)
+/* Allocates a specific node from our node structure. All ancestors will be
+ * increfed in the process, effectively allocating them as well. */
+static struct node *alloc_node_specific(int type, int id)
 {
-	return request_node(&node_lookup[type][id]);
+	return alloc_node(&node_lookup[type][id]);
 }
 
-/* Reinsert a specific node by id. */
-static int yield_node_specific(int type, int id)
+/* Frees a specific node back into our node structure. All ancestors will be
+ * decrefed and freed as well if their refcounts hit 0. */
+static int free_node_specific(int type, int id)
 {
-	return yield_node(&node_lookup[type][id]);
+	return free_node(&node_lookup[type][id]);
 }
 
-/* Returns the numa with the id in input if available, return NULL otherwise */
-struct node *request_numa_any()
+struct node *alloc_numa_any()
 {
-	return request_node_any(NUMA);
+	return alloc_node_any(NUMA);
 }
 
-/* Returns the numa with the id in input if available, return NULL otherwise */
-struct node *request_numa_specific(int numa_id)
+struct node *alloc_numa_specific(int numa_id)
 {
-	return request_node_specific(NUMA, numa_id);
+	return alloc_node_specific(NUMA, numa_id);
 }
 
-/* Returns the first available socket, returns NULL if nothing is availbale */
-struct node *request_socket_any()
+struct node *alloc_socket_any()
 {
-	return request_node_any(SOCKET);
+	return alloc_node_any(SOCKET);
 }
 		
-/* Returns the socket with the id in input if available, return NULL otherwise */
-struct node *request_socket_specific(int socket_id)
+struct node *alloc_socket_specific(int socket_id)
 {
-	return request_node_specific(SOCKET, socket_id);
+	return alloc_node_specific(SOCKET, socket_id);
 }
 
-/* Returns the first available chip, returns NULL if nothing is availbale */
-struct node *request_chip_any()
+struct node *alloc_chip_any()
 {
-	return request_node_any(CHIP);
+	return alloc_node_any(CHIP);
 }
 
-/* Returns the chip with the id in input if available, return NULL otherwise */
-struct node *request_chip_specific(int chip_id)
+struct node *alloc_chip_specific(int chip_id)
 {
-	return request_node_specific(CHIP, chip_id);
+	return alloc_node_specific(CHIP, chip_id);
 }
 
-/* Returns the first available core, returns NULL if nothing is availbale */
-struct node *request_core_any()
+struct node *alloc_core_any()
 {
-	return request_node_any(CORE);
+	return alloc_node_any(CORE);
 }
 
-/* Returns the core with the id in input if available, return NULL otherwise */
-struct node *request_core_specific(int core_id)
+struct node *alloc_core_specific(int core_id)
 {
-	return request_node_specific(CORE, core_id);
+	return alloc_node_specific(CORE, core_id);
 }
 
-/* Yields the specified core back to the system. */
-int yield_core_specific(int core_id)
+int free_core_specific(int core_id)
 {
-	return yield_node_specific(CORE, core_id);
+	return free_node_specific(CORE, core_id);
 }
 
 void print_node(struct node *n)
@@ -251,9 +247,9 @@ void print_all_nodes()
 }
 
 void test_structure(){
-	request_chip_specific(0);
-	request_chip_specific(2);
-	request_core_specific(7);
-	request_core_any();
+	alloc_chip_specific(0);
+	alloc_chip_specific(2);
+	alloc_core_specific(7);
+	alloc_core_any();
 	print_all_nodes();
 }
