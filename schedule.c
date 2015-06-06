@@ -40,6 +40,8 @@ static struct node_list node_list[] = {
 	CIRCLEQ_HEAD_INITIALIZER(node_list[SOCKET]),
 	CIRCLEQ_HEAD_INITIALIZER(node_list[NUMA])
 };
+/* An array containing the number of nodes at each level. */
+static int num_nodes[NUM_NODE_TYPES];
 
 /* A list of lookup tables to find specific nodes by type and id. */
 static struct node *node_lookup[NUM_NODE_TYPES];
@@ -52,7 +54,8 @@ static struct node *request_node_any(int type);
 /* Create a node and initialize it. */
 static void create_nodes(int type, int num, int num_children)
 {
-	/* Create the lookup table for this node type. */
+	/* Initialize the lookup tables for this node type. */
+	num_nodes[type] = num;
 	node_lookup[type] = malloc(num * sizeof(struct node));
 
 	/* Initialize all fields of each node. */
@@ -84,21 +87,39 @@ void nodes_init()
 	create_nodes(NUMA, num_numa, sockets_per_numa);
 }
 
-/* Update the score of all the childs of the current node. */
-/* If we are removing a node, val = 1, if we reinsert 0. */
-void update_score(struct node *n, int val) 
+/* Update the score of every node in the topology. */
+static void update_scores()
 {
-	n->score += val;
-	for (int j = 0; j < n->num_children; j++) {
-		update_score(n->children[j], val);
+	struct node *n = NULL;
+	for (int i = NUMA; i >= CORE; i--) {
+		for (int j = 0; j < num_nodes[i]; j++) {
+			n = &node_lookup[i][j];
+			if (n->parent == NULL)
+				n->score = n->refcount;
+			else
+				n->score = n->refcount + n->parent->score;
+		}
 	}
+}
+
+/* Returns the best node to allocate in case request_any_node() is called. */
+static struct node *find_best_node(int type) {
+	struct node *n = NULL;
+	struct node *bestn = NULL;
+	for (int i = 0; i < num_nodes[type]; i++) {
+		n = &node_lookup[type][i];
+		if (n->refcount == 0) {
+			if (bestn == NULL || n->score > bestn->score)
+				bestn = n;
+		}
+	}
+	return bestn;
 }
 
 /* Recursively incref a node from its level through its ancestors. */
 static void incref_node_recursive(struct node *n)
 {
 	n->refcount++;
-	update_score(n,1);
 	if (n->parent != NULL)
 		incref_node_recursive(n->parent);
 }
@@ -107,7 +128,6 @@ static void incref_node_recursive(struct node *n)
 static void decref_node_recursive(struct node *n)
 {
 	n->refcount--;
-	update_score(n,-1);
 	if (n->parent != NULL)
 		decref_node_recursive(n->parent);
 }
@@ -120,8 +140,10 @@ static struct node *request_node(struct node *n)
 	if (n->refcount)
 		return NULL;
 
-	if (n->num_children == 0)
+	if (n->num_children == 0) {
 		incref_node_recursive(n);
+		update_scores();
+	}
 	for (int i = 0; i < n->num_children; i++)
 		request_node(n->children[i]);
 	return n;
@@ -137,30 +159,6 @@ static int yield_node(struct node *n)
 
 	decref_node_recursive(n);
 	return 0;
-}
-
-/* Returns the best node to allocate in case of a request_any_node request. */
-/* Calls update_score for now, maybe we can do the update recursively */
-/* into the remove_node and reinsert_node functions. */
-static struct node *find_best_node(int type) {
-	struct node *np = NULL;
-	struct node *best = NULL;
-	if (type == NUMA) {
-		CIRCLEQ_FOREACH(np, &node_list[type], link) 
-			if (np->refcount == 0)
-				best = np;
-	} else {
-		CIRCLEQ_FOREACH(np, &node_list[type], link) {
-			if (best == NULL) {
-				if(np->refcount == 0)
-					best = np;
-			} else {
-				if (np->score > best->score && np->refcount == 0)
-					best = np;
-			}
-		}
-	}
-	return best;
 }
 
 /* Request for any node of a given type. */
