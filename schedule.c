@@ -38,6 +38,9 @@ static int num_nodes[NUM_NODE_TYPES];
 /* An array containing the number of children at each level. */
 static int num_children[NUM_NODE_TYPES];
 
+/* An array containing the max refcounts of nodes at each level. */
+static int max_refcount[NUM_NODE_TYPES];
+
 /* A list of lookup tables to find specific nodes by type and id. */
 static int total_nodes;
 static struct node *node_list;
@@ -52,12 +55,14 @@ static struct node *alloc_node_any(int type);
 static void init_nodes(int type, int num, int nchildren)
 {
 	/* Initialize the lookup tables for this node type. */
-	int node_offset = 0;
-	for (int i = 0; i < type; i++)
-		node_offset += num_nodes[i];
-	node_lookup[type] = &node_list[node_offset];
 	num_nodes[type] = num;
 	num_children[type] = nchildren;
+	max_refcount[type] = 1;
+	node_lookup[type] = node_list;
+	for (int i = 0; i < type; i++) {
+		max_refcount[type] *= num_children[i + 1];
+		node_lookup[type] += num_nodes[i];
+	}
 
 	/* Initialize all fields of each node. */
 	for (int i = 0; i < num; i++) {
