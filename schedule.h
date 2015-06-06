@@ -26,7 +26,6 @@ struct node {
 	int score;
 	struct node *parent;
 	struct node *children;
-	int num_children;
 };
 
 void nodes_init();

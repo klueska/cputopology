@@ -35,6 +35,9 @@
 /* An array containing the number of nodes at each level. */
 static int num_nodes[NUM_NODE_TYPES];
 
+/* An array containing the number of children at each level. */
+static int num_children[NUM_NODE_TYPES];
+
 /* A list of lookup tables to find specific nodes by type and id. */
 static int total_nodes;
 static struct node *node_list;
@@ -46,7 +49,7 @@ static struct node *alloc_node_specific(int id, int type);
 static struct node *alloc_node_any(int type);
 
 /* Create a node and initialize it. */
-static void init_nodes(int type, int num, int num_children)
+static void init_nodes(int type, int num, int nchildren)
 {
 	/* Initialize the lookup tables for this node type. */
 	int node_offset = 0;
@@ -54,6 +57,7 @@ static void init_nodes(int type, int num, int num_children)
 		node_offset += num_nodes[i];
 	node_lookup[type] = &node_list[node_offset];
 	num_nodes[type] = num;
+	num_children[type] = nchildren;
 
 	/* Initialize all fields of each node. */
 	for (int i = 0; i < num; i++) {
@@ -63,10 +67,9 @@ static void init_nodes(int type, int num, int num_children)
 		n->refcount = 0;
 		n->score = 0;
 		n->parent = NULL;
-		n->children = &node_lookup[child_node_type(type)][i * num_children];
-		for (int j = 0; j < num_children; j++)
+		n->children = &node_lookup[child_node_type(type)][i * nchildren];
+		for (int j = 0; j < nchildren; j++)
 			n->children[j].parent = n;
-		n->num_children = num_children;
 	}
 }
 
@@ -138,9 +141,9 @@ static struct node *alloc_node(struct node *n)
 	if (n->refcount)
 		return NULL;
 
-	if (n->num_children == 0)
+	if (num_children[n->type] == 0)
 		incref_node_recursive(n);
-	for (int i = 0; i < n->num_children; i++)
+	for (int i = 0; i < num_children[n->type]; i++)
 		alloc_node(&n->children[i]);
 	return n;
 }
@@ -229,7 +232,7 @@ void print_node(struct node *n)
 {
 	printf("%s id: %d, type: %d, refcount: %d, score %d, num_children: %d",
 	       node_label[n->type], n->id, n->type,
-	       n->refcount, n->score, n->num_children);
+	       n->refcount, n->score, num_children[n->type]);
 	if (n->parent) {
 		printf(", parent_id: %d, parent_type: %d\n",
 		       n->parent->id, n->parent->type);
