@@ -113,6 +113,7 @@ static void incref_node_recursive(struct node *n)
 		n->refcount++;
 		n = n->parent;
 	} while (n != NULL);
+	update_scores();
 }
 
 /* Recursively decref a node from its level through its ancestors. */
@@ -132,10 +133,8 @@ static struct node *alloc_node(struct node *n)
 	if (n->refcount)
 		return NULL;
 
-	if (n->num_children == 0) {
+	if (n->num_children == 0)
 		incref_node_recursive(n);
-		update_scores();
-	}
 	for (int i = 0; i < n->num_children; i++)
 		alloc_node(n->children[i]);
 	return n;
