@@ -5,11 +5,7 @@
  * See LICENSE for details.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdbool.h>
-#include <sys/queue.h>
-#include "topology.h" 
+
 
 #ifndef	SCHEDULE_H
 #define	SCHEDULE_H
@@ -22,7 +18,7 @@ static char node_label[4][7] = { "CORE", "CHIP", "SOCKET", "NUMA" };
 struct node {
 	int id;
 	enum node_type type;
-	int refcount;
+	int refcount[NUM_NODE_TYPES];
 	struct node *parent;
 	struct node *children;
 };

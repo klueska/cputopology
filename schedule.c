@@ -30,7 +30,14 @@
  * SUCH DAMAGE.
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <string.h>
+#include <sys/queue.h>
 #include "schedule.h"
+#include "topology.h" 
+
 
 /* An array containing the number of nodes at each level. */
 static int num_nodes[NUM_NODE_TYPES];
@@ -39,7 +46,7 @@ static int num_nodes[NUM_NODE_TYPES];
 static int num_children[NUM_NODE_TYPES];
 
 /* An array containing the max refcounts of nodes at each level. */
-static int max_refcount[NUM_NODE_TYPES];
+static int max_refcount[NUM_NODE_TYPES][NUM_NODE_TYPES];
 
 /* A list of lookup tables to find specific nodes by type and id. */
 static int total_nodes;
@@ -57,10 +64,14 @@ static void init_nodes(int type, int num, int nchildren)
 	/* Initialize the lookup tables for this node type. */
 	num_nodes[type] = num;
 	num_children[type] = nchildren;
-	max_refcount[type] = 1;
+	max_refcount[type][type] = 1;
 	node_lookup[type] = node_list;
+	
 	for (int i = 0; i < type; i++) {
-		max_refcount[type] *= num_children[i + 1];
+		max_refcount[type][i] = 1;
+		for (int j = 0; j <= i; j++) {
+			max_refcount[type][j] *= num_children[i + 1];
+		}
 		node_lookup[type] += num_nodes[i];
 	}
 
@@ -69,7 +80,7 @@ static void init_nodes(int type, int num, int nchildren)
 		struct node *n = &node_lookup[type][i];
 		n->id = i;
 		n->type = type;
-		n->refcount = 0;
+		memset(n->refcount, 0, sizeof(n->refcount));
 		n->parent = NULL;
 		n->children = &node_lookup[child_node_type(type)][i * nchildren];
 		for (int j = 0; j < nchildren; j++)
@@ -103,9 +114,9 @@ static struct node *find_best_node(int type)
 	for (int i = NUMA; i >= type; i--) {
 		for (int j = 0; j < num_siblings; j++) {
 			n = &siblings[j];
-			if (n->refcount >= best_refcount &&
-			    n->refcount < max_refcount[i]) {
-				best_refcount = n->refcount;
+			if (n->refcount[type] >= best_refcount &&
+			    n->refcount[type] < max_refcount[i][type]) {
+				best_refcount = n->refcount[type];
 				bestn = n;
 			}
 		}
@@ -120,19 +131,44 @@ static struct node *find_best_node(int type)
 }
 
 /* Recursively incref a node from its level through its ancestors. */
+/* At the current level, we simply check if the refcount is 0, if it is */
+/* not, we increment it to one. Then, for each other lower level  */
+/* of the array, we sum the refcount of the children. */
 static void incref_node_recursive(struct node *n)
 {
 	do {
-		n->refcount++;
+		if (n->refcount[n->type] == 0)
+			n->refcount[n->type]++;
+		for (int i = 0; i < n->type; i++) {
+			int sum_refcount = 0;
+			for (int j = 0; j < num_children[n->type]; j++) {
+				struct node child = n->children[j]; 
+				sum_refcount += child.refcount[i];
+			}
+			n->refcount[i] = sum_refcount;
+		}
 		n = n->parent;
 	} while (n != NULL);
 }
 
 /* Recursively decref a node from its level through its ancestors. */
+/* If the refcount is not 0, we have to check if the refcount of every child */
+/* of the current node is 0 to decrement its refcount. */
 static void decref_node_recursive(struct node *n)
 {
 	do {
-		n->refcount--;
+		int available_children = 0;
+		if (n->refcount[n->type] != 0) {
+			for (int i = 0; i < num_children[n->type]; i++) {
+				struct node child = n->children[i]; 
+				if (child.refcount[child.type] == 0)
+					available_children++;
+			}
+			if (available_children == num_children[n->type])
+				n->refcount[n->type]--;
+		}
+		for (int i = 0; i < n->type; i++) 
+			n->refcount[i]--;
 		n = n->parent;
 	} while (n != NULL);
 }
@@ -142,7 +178,7 @@ static struct node *alloc_node(struct node *n)
 {
 	if (n == NULL)
 		return NULL;
-	if (n->refcount)
+	if (n->refcount[n->type])
 		return NULL;
 
 	if (num_children[n->type] == 0)
@@ -157,7 +193,7 @@ static int free_node(struct node *n)
 {
 	if (n == NULL)
 		return -1;
-	if (n->refcount != 1)
+	if (n->type != CORE || n->refcount[n->type] == 0)
 		return -1;
 
 	decref_node_recursive(n);
@@ -236,7 +272,7 @@ void print_node(struct node *n)
 {
 	printf("%-6s id: %2d, type: %d, refcount: %2d, num_children: %2d",
 	       node_label[n->type], n->id, n->type,
-	       n->refcount, num_children[n->type]);
+	       n->refcount[n->type], num_children[n->type]);
 	if (n->parent) {
 		printf(", parent_id: %2d, parent_type: %d\n",
 		       n->parent->id, n->parent->type);
@@ -263,6 +299,10 @@ void test_structure(){
 	alloc_chip_specific(0);
 	alloc_chip_specific(2);
 	alloc_core_specific(7);
+	/* if (free_core_specific(7) == -1) { */
+	/* 	printf("Desallocation Error\n"); */
+	/* 	return; */
+	/* } */
 	alloc_core_any();
 	print_all_nodes();
 }

@@ -39,7 +39,7 @@ int allocate_spec_core(int i)
 {
 	struct node *np = alloc_core_specific(i);
 	if (np != NULL)
-		return np->refcount;
+		return np->refcount[np->type];
 	else 
 		return 0;
 }
@@ -49,7 +49,7 @@ int allocate_any_core()
 {
 	struct node *np = alloc_core_any();
 	if (np != NULL)
-		return np->refcount;
+		return np->refcount[np->type];
 	else 
 		return 0;
 }
@@ -65,7 +65,7 @@ int allocate_spec_chip(int i)
 {
 	struct node *np = alloc_chip_specific(i);
 	if (np != NULL)
-		return np->refcount;
+		return np->refcount[np->type];
 	else 
 		return 0;
 }
@@ -75,7 +75,7 @@ int allocate_any_chip()
 {
 	struct node *np = alloc_chip_any();
 	if (np != NULL)
-		return np->refcount;
+		return np->refcount[np->type];
 	else 
 		return 0;
 }
@@ -94,7 +94,7 @@ int allocate_spec_socket(int i)
 {
 	struct node *np = alloc_socket_specific(i);
 	if (np != NULL)
-		return np->refcount;
+		return np->refcount[np->type];
 	else 
 		return 0;
 }
@@ -104,7 +104,7 @@ int allocate_any_socket()
 {
 	struct node *np = alloc_socket_any();
 	if (np != NULL)
-		return np->refcount;
+		return np->refcount[np->type];
 	else 
 		return 0;
 }
@@ -123,7 +123,7 @@ int allocate_spec_numa(int i)
 {
 	struct node *np = alloc_numa_specific(i);
 	if (np != NULL)
-		return np->refcount;
+		return np->refcount[np->type];
 	else 
 		return 0;
 }
@@ -133,7 +133,7 @@ int allocate_any_numa()
 {
 	struct node *np = alloc_numa_any();
 	if (np != NULL)
-		return np->refcount;
+		return np->refcount[np->type];
 	else 
 		return 0;
 }
