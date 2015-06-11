@@ -73,7 +73,7 @@ int main(int argc, char **argv)
 	nodes_init();
 	test_id_funcs();
 	test_structure();
-	test_schedule();
+	//test_schedule();
 	return 0;
 }
 

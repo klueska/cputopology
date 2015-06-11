@@ -158,17 +158,17 @@ static void decref_node_recursive(struct node *n)
 {
 	do {
 		int available_children = 0;
-		if (n->refcount[n->type] != 0) {
-			for (int i = 0; i < num_children[n->type]; i++) {
-				struct node child = n->children[i]; 
-				if (child.refcount[child.type] == 0)
-					available_children++;
+		for (int i = 0; i <= n->type; i++) {
+			if (n->refcount[i] != 0) {
+				for (int j = 0; j < num_children[i]; j++) {
+					struct node child = n->children[j]; 
+					if (child.refcount[child.type] == 0)
+						available_children++;
+				}
+				if (available_children == num_children[i])
+					n->refcount[i]--;
 			}
-			if (available_children == num_children[n->type])
-				n->refcount[n->type]--;
 		}
-		for (int i = 0; i < n->type; i++) 
-			n->refcount[i]--;
 		n = n->parent;
 	} while (n != NULL);
 }
@@ -270,9 +270,12 @@ int free_core_specific(int core_id)
 
 void print_node(struct node *n)
 {
-	printf("%-6s id: %2d, type: %d, refcount: %2d, num_children: %2d",
+	printf("%-6s id: %2d, type: %d, num_children: %2d",
 	       node_label[n->type], n->id, n->type,
-	       n->refcount[n->type], num_children[n->type]);
+	       num_children[n->type]);
+	for (int i = n->type ; i>-1; i--) {
+		printf(", refcount[%d]: %2d", i, n->refcount[i]);
+	}
 	if (n->parent) {
 		printf(", parent_id: %2d, parent_type: %d\n",
 		       n->parent->id, n->parent->type);
@@ -299,10 +302,10 @@ void test_structure(){
 	alloc_chip_specific(0);
 	alloc_chip_specific(2);
 	alloc_core_specific(7);
-	/* if (free_core_specific(7) == -1) { */
-	/* 	printf("Desallocation Error\n"); */
-	/* 	return; */
-	/* } */
 	alloc_core_any();
+	if (free_core_specific(7) == -1) {
+		printf("Desallocation Error\n");
+		return;
+	}
 	print_all_nodes();
 }
