@@ -17,6 +17,8 @@ static char node_label[4][7] = { "CORE", "CHIP", "SOCKET", "NUMA" };
 
 struct node {
 	int id;
+	int owner_pid;
+	int provisioned;
 	enum node_type type;
 	int refcount[NUM_NODE_TYPES];
 	struct node *parent;
