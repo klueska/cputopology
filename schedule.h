@@ -5,10 +5,10 @@
  * See LICENSE for details.
  */
 
-
-
 #ifndef	SCHEDULE_H
 #define	SCHEDULE_H
+
+#include <sys/queue.h>
 
 enum node_type { CORE, CHIP, SOCKET, NUMA };
 static char node_label[4][7] = { "CORE", "CHIP", "SOCKET", "NUMA" };
@@ -21,17 +21,18 @@ struct node {
 	int refcount[NUM_NODE_TYPES];
 	struct node *parent;
 	struct node *children;
+	STAILQ_ENTRY(node) link;
 };
 
 void nodes_init();
-struct node *alloc_numa_any();
-struct node *alloc_numa_specific(int numa_id);
-struct node *alloc_socket_any();
-struct node *alloc_socket_specific(int socket_id);
-struct node *alloc_chip_any();
-struct node *alloc_chip_specific(int chip_id);
-struct node *alloc_core_any();
-struct node *alloc_core_specific(int core_id);
+struct core_list alloc_numa_any();
+struct core_list alloc_numa_specific(int numa_id);
+struct core_list alloc_socket_any();
+struct core_list alloc_socket_specific(int socket_id);
+struct core_list alloc_chip_any();
+struct core_list alloc_chip_specific(int chip_id);
+struct core_list alloc_core_any();
+struct core_list alloc_core_specific(int core_id);
 int free_core_specific(int core_id);
 
 void print_node(struct node *n);
