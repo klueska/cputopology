@@ -38,8 +38,6 @@
 #include "schedule.h"
 #include "topology.h" 
 
-STAILQ_HEAD(core_list, node);
-
 /* An array containing the number of nodes at each level. */
 static int num_nodes[NUM_NODE_TYPES];
 
@@ -159,7 +157,7 @@ static void decref_node_recursive(struct node *n)
 {
 	do {
 		int available_children = 0;
-		for (int i = 0; i <= n->type; i++) {
+		for (int i = n->type; i >= 0; i--) {
 			if (n->refcount[i] != 0) {
 				for (int j = 0; j < num_children[i]; j++) {
 					struct node child = n->children[j]; 
@@ -224,14 +222,15 @@ static int free_node_specific(int type, int id)
 	return free_node(&node_lookup[type][id]);
 }
 
-/* This function turns a node in a list of the cores it has. For exemple, if  */
+/* This function turns a node into a list of its cores. For exemple, if  */
 /* the node allocated is a socket of 8 cores, this function will return a  */
 /* list of the 8 cores composing the socket. */
+/* If we can't get one of the core of the node, we return an empty core list. */
 struct core_list node2list(struct node *n) 
 {
 	struct core_list core_available = 
 		STAILQ_HEAD_INITIALIZER(core_available);
-	if(n != NULL) {
+	if (n != NULL) {
 		if (n->type == CORE) {
 			STAILQ_INSERT_TAIL(&core_available, 
 					   &node_lookup[CORE][n->id], link);
@@ -246,11 +245,29 @@ struct core_list node2list(struct node *n)
 		}
 	}
 	return core_available;
-	}
+}
 
-struct core_list alloc_numa_any()
+/* Enable to handle multi "any" allocations given the number and the type of 
+nodes we want. Concat the list of cores and returns it. */
+/* If we can't get one of the requested core, we return an empty core list. */
+struct core_list concat_list(int amt, enum node_type type) {
+	struct core_list list = STAILQ_HEAD_INITIALIZER(list);
+	if (amt > num_nodes[type])
+		return list;
+	for (int i = 0; i < amt; i++) {
+		struct core_list temp =	list;
+			list = node2list(alloc_node_any(type));
+		if (STAILQ_FIRST(&list) == NULL)
+			return list;
+		else
+			STAILQ_CONCAT(&list, &temp);
+	}
+	return list;
+}
+
+struct core_list alloc_numa_any(int amt)
 {
-	return node2list(alloc_node_any(NUMA));
+	return concat_list(amt, NUMA);
 }
 
 struct core_list alloc_numa_specific(int numa_id)
@@ -258,9 +275,9 @@ struct core_list alloc_numa_specific(int numa_id)
 	return node2list(alloc_node_specific(NUMA, numa_id));
 }
 
-struct core_list alloc_socket_any()
+struct core_list alloc_socket_any(int amt)
 {
-	return node2list(alloc_node_any(SOCKET));
+	return concat_list(amt, SOCKET);
 }
 		
 struct core_list alloc_socket_specific(int socket_id)
@@ -268,9 +285,9 @@ struct core_list alloc_socket_specific(int socket_id)
 	return node2list(alloc_node_specific(SOCKET, socket_id));
 }
 
-struct core_list alloc_chip_any()
+struct core_list alloc_chip_any(int amt)
 {
-	return node2list(alloc_node_any(CHIP));
+	return concat_list(amt,CHIP);
 }
 
 struct core_list alloc_chip_specific(int chip_id)
@@ -278,9 +295,9 @@ struct core_list alloc_chip_specific(int chip_id)
 	return node2list(alloc_node_specific(CHIP, chip_id));
 }
 
-struct core_list alloc_core_any()
+struct core_list alloc_core_any(int amt)
 {
-	return node2list(alloc_node_any(CORE));
+	return concat_list(amt,CORE);
 }
 
 struct core_list alloc_core_specific(int core_id)
@@ -324,19 +341,11 @@ void print_all_nodes()
 }
 
 void test_structure(){
-	struct core_list test = alloc_socket_any();
 	struct node *np = NULL;
-	struct core_list test1 = alloc_core_any();
-	/* STAILQ_CONCAT(&test, &test1); */
-	STAILQ_FOREACH(np, &test, link) {
-		printf("I am core %d\n, refcount: %d\n",
+	struct core_list test1 = alloc_chip_any(3);
+	STAILQ_FOREACH(np, &test1, link) {
+		printf("I am core %d, refcount: %d\n",
 		       np->id,np->refcount[0]);
 	}
-	/* alloc_core_specific(7); */
-	/* alloc_core_any(); */
-	/* if (free_core_specific(7) == -1) { */
-	/* 	printf("Desallocation Error\n"); */
-	/* 	return; */
-	/* } */
-	/* print_all_nodes(); */
+	print_all_nodes();
 }

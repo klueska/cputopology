@@ -26,14 +26,16 @@ struct node {
 	STAILQ_ENTRY(node) link;
 };
 
+STAILQ_HEAD(core_list, node);
+
 void nodes_init();
-struct core_list alloc_numa_any();
+struct core_list alloc_numa_any(int amt);
 struct core_list alloc_numa_specific(int numa_id);
-struct core_list alloc_socket_any();
+struct core_list alloc_socket_any(int amt);
 struct core_list alloc_socket_specific(int socket_id);
-struct core_list alloc_chip_any();
+struct core_list alloc_chip_any(int amt);
 struct core_list alloc_chip_specific(int chip_id);
-struct core_list alloc_core_any();
+struct core_list alloc_core_any(int amt);
 struct core_list alloc_core_specific(int core_id);
 int free_core_specific(int core_id);
 
