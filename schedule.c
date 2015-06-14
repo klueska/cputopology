@@ -151,22 +151,30 @@ static void incref_node_recursive(struct node *n)
 }
 
 /* Recursively decref a node from its level through its ancestors. */
-/* If the refcount is not 0, we have to check if the refcount of every child */
-/* of the current node is 0 to decrement its refcount. */
+/* What we do here is we update all refcount of the given node. To do so, we */
+/* update the refcount at level i-1 by summing the children refcount at this  */
+/* level. Then we simply decrease to 0 at level n->type if refcount at level */
+/* n->type-1 is 0. If the node is a core, then we simply decref its refcount. */
 static void decref_node_recursive(struct node *n)
 {
 	do {
-		int available_children = 0;
-		for (int i = n->type; i >= 0; i--) {
-			if (n->refcount[i] != 0) {
-				for (int j = 0; j < num_children[i]; j++) {
+		if (n->type == CORE && n->refcount[n->type] != 0) {
+			n->refcount[n->type]--;
+		} else {
+			for (int i = CHIP; i <= n->type; i++) {
+				int current_refcount = 0;
+				for (int j = 0; j < num_children[n->type]; j++) {
 					struct node child = n->children[j]; 
-					if (child.refcount[child.type] == 0)
-						available_children++;
+					if (child.refcount[i -1] != 0) {
+						current_refcount += 
+							child.refcount[i-1];
+					}
 				}
-				if (available_children == num_children[i])
-					n->refcount[i]--;
+				n->refcount[i-1] = current_refcount;
 			}
+			if (n->refcount[n->type-1] == 0 &&
+			    n->refcount[n->type] != 0)
+				n->refcount[n->type]--;
 		}
 		n = n->parent;
 	} while (n != NULL);
@@ -248,7 +256,7 @@ struct core_list node2list(struct node *n)
 }
 
 /* Enable to handle multi "any" allocations given the number and the type of 
-nodes we want. Concat the list of cores and returns it. */
+   nodes we want. Concat the list of cores and returns it. */
 /* If we can't get one of the requested core, we return an empty core list. */
 struct core_list concat_list(int amt, enum node_type type) {
 	struct core_list list = STAILQ_HEAD_INITIALIZER(list);
@@ -256,7 +264,7 @@ struct core_list concat_list(int amt, enum node_type type) {
 		return list;
 	for (int i = 0; i < amt; i++) {
 		struct core_list temp =	list;
-			list = node2list(alloc_node_any(type));
+		list = node2list(alloc_node_any(type));
 		if (STAILQ_FIRST(&list) == NULL)
 			return list;
 		else
@@ -342,10 +350,16 @@ void print_all_nodes()
 
 void test_structure(){
 	struct node *np = NULL;
-	struct core_list test1 = alloc_chip_any(3);
+	struct core_list test1 = alloc_socket_specific(0);
 	STAILQ_FOREACH(np, &test1, link) {
 		printf("I am core %d, refcount: %d\n",
 		       np->id,np->refcount[0]);
 	}
+	print_all_nodes();
+	free_core_specific(4);
+	printf("\nAFTER\n\n");
+	print_all_nodes();
+	struct core_list test = alloc_core_any(1);
+	printf("\nAFTER\n\n");
 	print_all_nodes();
 }
