@@ -129,55 +129,47 @@ static struct node *find_best_node(int type)
 	return bestn;
 }
 
-/* Recursively incref a node from its level through its ancestors. */
-/* At the current level, we simply check if the refcount is 0, if it is */
-/* not, we increment it to one. Then, for each other lower level  */
-/* of the array, we sum the refcount of the children. */
+/* Recursively incref a node from its level through its ancestors.  At the
+ * current level, we simply check if the refcount is 0, if it is not, we
+ * increment it to one. Then, for each other lower level of the array, we sum
+ * the refcount of the children. */
 static void incref_node_recursive(struct node *n)
 {
-	do {
-		if (n->refcount[n->type] == 0)
-			n->refcount[n->type]++;
-		for (int i = 0; i < n->type; i++) {
-			int sum_refcount = 0;
-			for (int j = 0; j < num_children[n->type]; j++) {
-				struct node child = n->children[j]; 
-				sum_refcount += child.refcount[i];
+	int type;
+	struct node *p;
+	while (n != NULL) {
+		type = n->type;
+		if (n->refcount[type] == 0) {
+			n->refcount[type]++;
+			p = n->parent;
+			while (p != NULL) {
+				p->refcount[type]++;
+				p = p->parent;
 			}
-			n->refcount[i] = sum_refcount;
 		}
 		n = n->parent;
-	} while (n != NULL);
+	}
 }
 
-/* Recursively decref a node from its level through its ancestors. */
-/* What we do here is we update all refcount of the given node. To do so, we */
-/* update the refcount at level i-1 by summing the children refcount at this  */
-/* level. Then we simply decrease to 0 at level n->type if refcount at level */
-/* n->type-1 is 0. If the node is a core, then we simply decref its refcount. */
+/* Recursively decref a node from its level through its ancestors.  If the
+ * refcount is not 0, we have to check if the refcount of every child of the
+ * current node is 0 to decrement its refcount. */
 static void decref_node_recursive(struct node *n)
 {
-	do {
-		if (n->type == CORE && n->refcount[n->type] != 0) {
-			n->refcount[n->type]--;
-		} else {
-			for (int i = CHIP; i <= n->type; i++) {
-				int current_refcount = 0;
-				for (int j = 0; j < num_children[n->type]; j++) {
-					struct node child = n->children[j]; 
-					if (child.refcount[i -1] != 0) {
-						current_refcount += 
-							child.refcount[i-1];
-					}
-				}
-				n->refcount[i-1] = current_refcount;
+	int type;
+	struct node *p;
+	while (n != NULL) {
+		type = n->type;
+		if ((type == CORE) || (n->refcount[child_node_type(type)] == 0)) {
+			n->refcount[type]--;
+			p = n->parent;
+			while (p != NULL) {
+				p->refcount[type]--;
+				p = p->parent;
 			}
-			if (n->refcount[n->type-1] == 0 &&
-			    n->refcount[n->type] != 0)
-				n->refcount[n->type]--;
 		}
 		n = n->parent;
-	} while (n != NULL);
+	}
 }
 
 /* Allocate a specific node. */
@@ -200,7 +192,7 @@ static int free_node(struct node *n)
 {
 	if (n == NULL)
 		return -1;
-	if (n->type != CORE || n->refcount[n->type] == 0)
+	if (n->type != CORE)
 		return -1;
 
 	decref_node_recursive(n);
