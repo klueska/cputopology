@@ -101,6 +101,15 @@ void nodes_init()
 	init_nodes(NUMA, num_numa, sockets_per_numa);
 }
 
+/* Returns the first child of type in parameter for the node n. */
+static struct node *first_node(struct node *n, int type)
+{
+	struct node *first_child = n;
+	while (first_child->type != type) 
+		first_child = &first_child->children[0];
+	return first_child;
+}
+
 /* Returns the best node to allocate in case alloc_any_node() is called. */
 static struct node *find_best_node(int type)
 {
@@ -113,6 +122,8 @@ static struct node *find_best_node(int type)
 	for (int i = NUMA; i >= type; i--) {
 		for (int j = 0; j < num_siblings; j++) {
 			n = &siblings[j];
+			if (n->refcount[type] == 0)
+				return first_node(n, type);
 			if (n->refcount[type] >= best_refcount &&
 			    n->refcount[type] < max_refcount[i][type]) {
 				best_refcount = n->refcount[type];
@@ -255,9 +266,8 @@ struct core_list concat_list(int amt, enum node_type type) {
 	if (amt > num_nodes[type])
 		return list;
 	for (int i = 0; i < amt; i++) {
-		struct core_list temp =	list;
-		list = node2list(alloc_node_any(type));
-		if (STAILQ_FIRST(&list) == NULL)
+		struct core_list temp = node2list(alloc_node_any(type));
+		if (STAILQ_FIRST(&temp) == NULL)
 			return list;
 		else
 			STAILQ_CONCAT(&list, &temp);
@@ -342,16 +352,18 @@ void print_all_nodes()
 
 void test_structure(){
 	struct node *np = NULL;
-	struct core_list test1 = alloc_socket_specific(0);
+	struct proc *p1 = malloc(sizeof(struct proc));
+	struct core_list test = alloc_chip_any(1);
+	struct core_list test1 = alloc_chip_any(1);
 	STAILQ_FOREACH(np, &test1, link) {
 		printf("I am core %d, refcount: %d\n",
 		       np->id,np->refcount[0]);
 	}
-	print_all_nodes();
-	free_core_specific(4);
-	printf("\nAFTER\n\n");
-	print_all_nodes();
-	struct core_list test = alloc_core_any(1);
-	printf("\nAFTER\n\n");
+	/* print_all_nodes(); */
+	/* free_core_specific(4); */
+	/* printf("\nAFTER\n\n"); */
+	/* print_all_nodes(); */
+	/* struct core_list test = alloc_core_any(1); */
+	/* printf("\nAFTER\n\n"); */
 	print_all_nodes();
 }
