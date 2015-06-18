@@ -40,6 +40,7 @@ struct core_list alloc_socket_specific(int socket_id);
 struct core_list alloc_chip_any(int amt);
 struct core_list alloc_chip_specific(int chip_id);
 struct core_list alloc_core_any(int amt);
+void alloc_core_any2(int amt, struct proc *p);
 struct core_list alloc_core_specific(int core_id);
 int free_core_specific(int core_id);
 
