@@ -16,20 +16,20 @@ static char node_label[4][7] = { "CORE", "CHIP", "SOCKET", "NUMA" };
 #define child_node_type(t) ((t) - 1)
 
 struct node {
-	int id;
-	enum node_type type;
-	int refcount[NUM_NODE_TYPES];
-	struct node *parent;
-	struct node *children;
-	STAILQ_ENTRY(node) link;
-	struct proc *allocated_to;
-	struct proc *provisioned_to;
+    int id;
+    enum node_type type;
+    int refcount[NUM_NODE_TYPES];
+    struct node *parent;
+    struct node *children;
+    STAILQ_ENTRY(node) link;
+    struct proc *allocated_to;
+    struct proc *provisioned_to;
 };
 
 STAILQ_HEAD(core_list, node);
 struct proc {
-	struct core_list core_owned;
-	struct core_list core_provisioned;
+    struct core_list core_owned;
+    struct core_list core_provisioned;
 };
 
 void nodes_init();
