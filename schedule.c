@@ -40,6 +40,7 @@
 
 /* An array containing the number of nodes at each level. */
 static int num_nodes[NUM_NODE_TYPES];
+static int **score;
 
 /* An array containing the number of children at each level. */
 static int num_children[NUM_NODE_TYPES];
@@ -87,12 +88,51 @@ static void init_nodes(int type, int num, int nchildren)
     }
 }
 
+/* Allocate a flat array of scores. */
+static void init_score()
+{
+    if ((score = malloc(num_cores * sizeof(int*))) != NULL)
+	for (int i = 0; i < num_cores; i++ ) {
+	    if ((score[i] = malloc(num_cores*sizeof(int))) == NULL )
+		exit(-1);
+	}
+    for (int i = 0; i < num_cores; i++ ) {
+	for (int j = 0; j < num_cores; j++ ) {
+	    if (i == j) {
+		score[i][j] = 0;
+	    } else {
+		int chip_id_i = i/cores_per_chip;
+		int chip_id_j = j/cores_per_chip;
+		if (chip_id_i == chip_id_j) {
+		    score[i][j] = 2;
+		} else {
+		    int socket_id_i = i/cores_per_socket ;
+		    int socket_id_j = j/cores_per_socket ;
+		    if (socket_id_i == socket_id_j) {
+			score[i][j] = 4;
+		    } else {
+			int numa_id_i = i/cores_per_numa ;
+			int numa_id_j = j/cores_per_numa ;
+			if (numa_id_i == numa_id_j) {
+			    score[i][j] = 6;
+			} else {
+			    score[i][j] = 8;
+			}
+		    }
+		}
+	    }
+	}
+    }
+}
+
 /* Build our available nodes structure. */
 void nodes_init()
 {
     /* Allocate a flat array of nodes. */
     total_nodes = num_cores + num_chips + num_sockets + num_numa;
     node_list = malloc(total_nodes * sizeof(struct node));
+
+    init_score();
 
     /* Initialize the nodes at each level in our hierarchy. */
     init_nodes(CORE, num_cores, 0);
