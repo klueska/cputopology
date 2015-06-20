@@ -40,6 +40,7 @@
 
 /* An array containing the number of nodes at each level. */
 static int num_nodes[NUM_NODE_TYPES];
+static int *cores_per_type;
 static int **score;
 
 /* An array containing the number of children at each level. */
@@ -66,7 +67,7 @@ static void init_nodes(int type, int num, int nchildren)
     num_children[type] = nchildren;
     max_refcount[type][type] = 1;
     node_lookup[type] = node_list;
-	
+
     for (int i = 0; i < type; i++) {
 	max_refcount[type][i] = 1;
 	for (int j = 0; j <= i; j++) {
@@ -91,6 +92,9 @@ static void init_nodes(int type, int num, int nchildren)
 /* Allocate a flat array of scores. */
 static void init_score()
 {
+    cores_per_type = (int[NUM_NODE_TYPES]) {
+	1, cores_per_chip, cores_per_socket, cores_per_numa
+    };
     if ((score = malloc(num_cores * sizeof(int*))) != NULL)
 	for (int i = 0; i < num_cores; i++ ) {
 	    if ((score[i] = malloc(num_cores*sizeof(int))) == NULL )
@@ -98,27 +102,10 @@ static void init_score()
 	}
     for (int i = 0; i < num_cores; i++ ) {
 	for (int j = 0; j < num_cores; j++ ) {
-	    if (i == j) {
-		score[i][j] = 0;
-	    } else {
-		int chip_id_i = i/cores_per_chip;
-		int chip_id_j = j/cores_per_chip;
-		if (chip_id_i == chip_id_j) {
-		    score[i][j] = 2;
-		} else {
-		    int socket_id_i = i/cores_per_socket ;
-		    int socket_id_j = j/cores_per_socket ;
-		    if (socket_id_i == socket_id_j) {
-			score[i][j] = 4;
-		    } else {
-			int numa_id_i = i/cores_per_numa ;
-			int numa_id_j = j/cores_per_numa ;
-			if (numa_id_i == numa_id_j) {
-			    score[i][j] = 6;
-			} else {
-			    score[i][j] = 8;
-			}
-		    }
+	    for (int k = CORE; k<= NUMA ; k++) {
+		if (i/cores_per_type[k] == j/cores_per_type[k]) {
+		    score[i][j] = k*2;
+		    break;
 		}
 	    }
 	}
