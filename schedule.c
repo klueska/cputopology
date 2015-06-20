@@ -422,9 +422,11 @@ void alloc_core_specific(int core_id, struct proc *p)
 	
 }
 
-int free_core_specific(int core_id)
+int free_core_specific(int core_id, struct proc *p)
 {
-    return free_core_id(core_id);
+    if (free_core_id(core_id) == 0)
+	STAILQ_REMOVE(&(p->core_owned), 
+		      &node_lookup[CORE][core_id], node, link);
 }
 
 void print_node(struct node *n)
@@ -472,7 +474,7 @@ void test_structure(){
 	       np->id,np->refcount[0]);
     }
     /* print_all_nodes(); */
-    /* free_core_specific(4); */
+    free_core_specific(4,p1);
     /* printf("\nAFTER\n\n"); */
     /* print_all_nodes(); */
     /* struct core_list test = alloc_core_any(1); */

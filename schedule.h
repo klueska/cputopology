@@ -35,7 +35,7 @@ struct proc {
 void nodes_init();
 void alloc_core_any(int amt, struct proc *p);
 void alloc_core_specific(int core_id, struct proc *p);
-int free_core_specific(int core_id);
+int free_core_specific(int core_id, struct proc *p);
 
 void print_node(struct node *n);
 void print_nodes(int type);
