@@ -40,7 +40,7 @@
 
 /* An array containing the number of nodes at each level. */
 static int num_nodes[NUM_NODE_TYPES];
-static int *cores_per_type;
+static int cores_per_type[NUM_NODE_TYPES];
 static int **score;
 
 /* An array containing the number of children at each level. */
@@ -92,9 +92,14 @@ static void init_nodes(int type, int num, int nchildren)
 /* Allocate a flat array of scores. */
 static void init_score()
 {
-    cores_per_type = (int[NUM_NODE_TYPES]) {
-	1, cores_per_chip, cores_per_socket, cores_per_numa
-    };
+    cores_per_type[CORE] = 1;
+    cores_per_type[CHIP] = cores_per_chip;
+    cores_per_type[SOCKET] = cores_per_socket;
+    cores_per_type[NUMA] = cores_per_numa;
+    /* cores_per_type = (int[NUM_NODE_TYPES]) { */
+    /* 	1, cores_per_chip, cores_per_socket, cores_per_numa */
+    /* }; */
+
     if ((score = malloc(num_cores * sizeof(int*))) != NULL)
 	for (int i = 0; i < num_cores; i++ ) {
 	    if ((score[i] = malloc(num_cores*sizeof(int))) == NULL )
@@ -115,12 +120,13 @@ static void init_score()
 /* Build our available nodes structure. */
 void nodes_init()
 {
+    /* Initialize our 2 dimensions array of score */
+    init_score();
+
     /* Allocate a flat array of nodes. */
     total_nodes = num_cores + num_chips + num_sockets + num_numa;
     node_list = malloc(total_nodes * sizeof(struct node));
-
-    init_score();
-
+    
     /* Initialize the nodes at each level in our hierarchy. */
     init_nodes(CORE, num_cores, 0);
     init_nodes(CHIP, num_chips, cores_per_chip);
@@ -188,22 +194,12 @@ static struct node *find_best_core(struct proc *p)
     struct node *bestn = NULL;
     struct node *np = NULL;
     int sibling_id = 0;
-    STAILQ_FOREACH(np, &core_owned, link) {
-	sibling_id = np->id % cores_per_chip == 0 ? np->id+1: np->id-1;
-/* We first consider the core siblings */
-	struct node *core_sibling = &node_lookup[CORE][sibling_id];
-	if (core_sibling->refcount[CORE] == 0) {
-	    int sibling_score = calc_score(core_sibling,core_owned) ;
-	    if (best_score == 0 || sibling_score < best_score) {
-		best_score = sibling_score ;
-		bestn = core_sibling;
-	    }
-	}
-/* We then consider the core of the chip siblings */
-	if (STAILQ_NEXT(np,link) == NULL && bestn == NULL) {
-	    int socket_id = np->id / cores_per_socket;
-	    for (int i = 0; i<cores_per_socket; i++) {
-		sibling_id = i + cores_per_socket*socket_id;
+    for (int k = CHIP; k <= NUMA ; k++){
+	STAILQ_FOREACH(np, &core_owned, link) {
+	    int nb_cores = cores_per_type[k];
+	    int type_id = np->id / nb_cores;
+	    for (int i = 0; i < nb_cores; i++) {
+		sibling_id = i + nb_cores*type_id;
 		struct node *core_sibling = &node_lookup[CORE][sibling_id];
 		if (core_sibling->refcount[CORE] == 0) {
 		    int sibling_score = calc_score(core_sibling,core_owned) ;
@@ -214,8 +210,10 @@ static struct node *find_best_core(struct proc *p)
 		}
 	    }
 	}
+	if (bestn != NULL)
+	    return bestn;
     }
-    return bestn;
+    return NULL;
 }
 
 /* Returns the best first node to allocate for a proc whic has no core. 
@@ -450,7 +448,8 @@ void test_structure(){
     struct node *np = NULL;
     struct proc *p1 = malloc(sizeof(struct proc));
     struct proc *p2 = malloc(sizeof(struct proc));
-    struct core_list list = STAILQ_HEAD_INITIALIZER(list);	
+    struct core_list list = STAILQ_HEAD_INITIALIZER(list);     
+
     p1->core_owned = list;
     p2->core_owned = list;
     alloc_core_any(3,p1);
