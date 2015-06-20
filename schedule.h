@@ -33,15 +33,8 @@ struct proc {
 };
 
 void nodes_init();
-struct core_list alloc_numa_any(int amt);
-struct core_list alloc_numa_specific(int numa_id);
-struct core_list alloc_socket_any(int amt);
-struct core_list alloc_socket_specific(int socket_id);
-struct core_list alloc_chip_any(int amt);
-struct core_list alloc_chip_specific(int chip_id);
-struct core_list alloc_core_any(int amt);
-void alloc_core_any2(int amt, struct proc *p);
-struct core_list alloc_core_specific(int core_id);
+void alloc_core_any(int amt, struct proc *p);
+void alloc_core_specific(int core_id, struct proc *p);
 int free_core_specific(int core_id);
 
 void print_node(struct node *n);
