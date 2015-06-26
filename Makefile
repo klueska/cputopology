@@ -1,4 +1,4 @@
-CFILES = main.c topology.c acpi.c arch.c schedule.c test_schedule.c 
+CFILES = main.c topology.c acpi.c arch.c schedule.c 
 EXEC = cputopology
 LIBS = -lpthread
 

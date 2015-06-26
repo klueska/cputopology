@@ -37,7 +37,6 @@
 #include "acpi.h"
 #include "topology.h"
 #include "schedule.h"
-#include "test_schedule.h"
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static void *core_proxy(void *arg)
