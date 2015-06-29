@@ -40,6 +40,8 @@
 
 /* An array containing the number of nodes at each level. */
 static int num_nodes[NUM_NODE_TYPES];
+
+/* A 2D array containing for all core i its distance from a core j. */
 static int **core_distance;
 
 /* An array containing the number of children at each level. */
@@ -87,7 +89,7 @@ static void init_nodes(int type, int num, int nchildren)
 }
 
 /* Allocate a flat array of core_distances. */
-static void init_core_distance()
+static void init_core_distances()
 {
     if ((core_distance = malloc(num_cores * sizeof(int*))) != NULL)
 	for (int i = 0; i < num_cores; i++ ) {
@@ -96,7 +98,7 @@ static void init_core_distance()
 	}
     for (int i = 0; i < num_cores; i++ ) {
 	for (int j = 0; j < num_cores; j++ ) {
-	    for (int k = 0; k<= NUM_NODE_TYPES; k++) {
+	    for (int k = CORE; k<= NUMA; k++) {
 		if (i/max_refcount[k][0] == j/max_refcount[k][0]) {
 		    core_distance[i][j] = k*2;
 		    break;
@@ -120,7 +122,7 @@ void nodes_init()
     init_nodes(NUMA, num_numa, sockets_per_numa);
 
     /* Initialize our 2 dimensions array of core_distance */
-    init_core_distance();
+    init_core_distances();
 }
 
 /* Returns the first child of type in parameter for the node n. */
@@ -135,12 +137,12 @@ static struct node *first_core(struct node *n)
 /* Returns the core_distance of one core from the cores owned by proc p */
 static int calc_core_distance(struct node *n, struct core_list cl)
 {
-    int ret_core_distance = 0;
+    int d = 0;
     struct node *temp = NULL;
     STAILQ_FOREACH(temp, &cl, link) {
-	ret_core_distance += core_distance[n->id][temp->id];
+	d += core_distance[n->id][temp->id];
     }
-    return ret_core_distance;
+    return d;
 }
 
 /* Consider first core siblings of the cores the proc already own. Calculate for
@@ -148,12 +150,12 @@ static int calc_core_distance(struct node *n, struct core_list cl)
  * proc owns. Allocate the core that has the lowest core_distance. */
 static struct node *find_best_core(struct proc *p)
 {
-    int best_core_distance = 0;
+    int bestd = 0;
     struct core_list core_owned = p->core_owned;
     struct node *bestn = NULL;
     struct node *np = NULL;
     int sibling_id = 0;
-    for (int k = 1; k <= NUM_NODE_TYPES ; k++){
+    for (int k = CHIP; k <= NUM_NODE_TYPES ; k++){
 	STAILQ_FOREACH(np, &core_owned, link) {
 	    int nb_cores = max_refcount[k][0];
 	    int type_id = np->id / nb_cores;
@@ -161,10 +163,10 @@ static struct node *find_best_core(struct proc *p)
 		sibling_id = i + nb_cores*type_id;
 		struct node *core_sibling = &node_lookup[CORE][sibling_id];
 		if (core_sibling->refcount[CORE] == 0) {
-		    int sibling_core_distance = calc_core_distance(core_sibling,core_owned) ;
-		    if (best_core_distance == 0 || 
-			sibling_core_distance < best_core_distance) {
-			best_core_distance = sibling_core_distance ;
+		    int sibd = calc_core_distance(core_sibling,core_owned) ;
+		    if (bestd == 0 || 
+			sibd < bestd) {
+			bestd = sibd ;
 			bestn = core_sibling;
 		    }
 		}
@@ -186,7 +188,7 @@ static struct node *find_first_core()
     struct node *siblings = node_lookup[NUMA];
     int num_siblings = 1;
 
-    for (int i = NUM_NODE_TYPES; i >= 0; i--) {
+    for (int i = NUMA; i >= CORE; i--) {
 	for (int j = 0; j < num_siblings; j++) {
 	    n = &siblings[j];
 	    if (n->refcount[CORE] == 0)
