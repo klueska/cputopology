@@ -12,15 +12,7 @@
 
 #define MAX_NUM_CPUS 256
 
-int num_cores;
-int num_chips;
-int num_sockets;
-int num_numa;
-int sockets_per_numa;
-int chips_per_socket;
-int cores_per_chip;
-int cores_per_socket;
-int cores_per_numa;
+
 struct cpu_topology {
 	int numa_id;
 	int socket_id;
@@ -30,6 +22,15 @@ struct cpu_topology {
 };
 
 extern struct cpu_topology cpu_topology[MAX_NUM_CPUS];
+extern int num_cores;
+extern int num_chips;
+extern int num_sockets;
+extern int num_numa;
+extern int sockets_per_numa;
+extern int chips_per_socket;
+extern int cores_per_chip;
+extern int cores_per_socket;
+extern int cores_per_numa;
 
 int numa_domain();
 int socketid();

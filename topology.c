@@ -41,6 +41,17 @@
 #include "acpi.h"
 #include "topology.h"
 
+/* TODO: Add those int into a struct cpu_topology_info */
+int num_cores;
+int num_chips;
+int num_sockets;
+int num_numa;
+int sockets_per_numa;
+int chips_per_socket;
+int cores_per_chip;
+int cores_per_socket;
+int cores_per_numa;
+
 struct cpu_topology cpu_topology[MAX_NUM_CPUS] = { [0 ... (MAX_NUM_CPUS-1) ]
                                                    {-1, -1, -1, -1, false} };
 int os_coreid_lookup[MAX_NUM_CPUS] = {[0 ... (MAX_NUM_CPUS - 1)] -1};
