@@ -63,7 +63,7 @@ static void *core_proxy(void *arg)
 	pin_to_core(coreid);
 
 	uint32_t apic_id = get_apic_id();
-	cpu_topology[apic_id].online = true;
+	cpu_topology_info.core_list[apic_id].online = true;
 }
 
 void archinit()

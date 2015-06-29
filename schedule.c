@@ -38,6 +38,17 @@
 #include "schedule.h"
 #include "topology.h" 
 
+#define num_cores           (cpu_topology_info.num_cores)
+#define num_cores_power2    (cpu_topology_info.num_cores_power2)
+#define num_chips           (cpu_topology_info.num_chips)
+#define num_sockets         (cpu_topology_info.num_sockets)
+#define num_numa            (cpu_topology_info.num_numa)
+#define cores_per_numa      (cpu_topology_info.cores_per_numa)
+#define cores_per_socket    (cpu_topology_info.cores_per_socket)
+#define cores_per_chip      (cpu_topology_info.cores_per_chip)
+#define chips_per_socket    (cpu_topology_info.chips_per_socket)
+#define sockets_per_numa    (cpu_topology_info.sockets_per_numa)
+
 /* An array containing the number of nodes at each level. */
 static int num_nodes[NUM_NODE_TYPES];
 
