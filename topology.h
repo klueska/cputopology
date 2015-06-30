@@ -19,17 +19,17 @@ struct core_info {
 };
 
 struct topology_info {
-    int num_cores;
-    int num_cores_power2;
-    int num_chips;
-    int num_sockets;
-    int num_numa;
-    int cores_per_numa;
-    int cores_per_socket;
-    int cores_per_chip;
-    int chips_per_socket;
-    int sockets_per_numa;
-    struct core_info *core_list;
+	int num_cores;
+	int num_cores_power2;
+	int num_chips;
+	int num_sockets;
+	int num_numa;
+	int cores_per_numa;
+	int cores_per_socket;
+	int cores_per_chip;
+	int chips_per_socket;
+	int sockets_per_numa;
+	struct core_info *core_list;
 };
 
 extern struct topology_info cpu_topology_info;

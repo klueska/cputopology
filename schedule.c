@@ -72,88 +72,88 @@ static struct node *alloc_core(struct node *n, struct proc *p);
 /* Create a node and initialize it. */
 static void init_nodes(int type, int num, int nchildren)
 {
-    /* Initialize the lookup tables for this node type. */
-    num_nodes[type] = num;
-    num_children[type] = nchildren;
-    max_refcount[type][type] = 1;
-    node_lookup[type] = node_list;
+	/* Initialize the lookup tables for this node type. */
+	num_nodes[type] = num;
+	num_children[type] = nchildren;
+	max_refcount[type][type] = 1;
+	node_lookup[type] = node_list;
 
-    for (int i = 0; i < type; i++) {
-	max_refcount[type][i] = 1;
-	for (int j = 0; j <= i; j++) {
-	    max_refcount[type][j] *= num_children[i + 1];
+	for (int i = 0; i < type; i++) {
+		max_refcount[type][i] = 1;
+		for (int j = 0; j <= i; j++)
+			max_refcount[type][j] *= num_children[i + 1];
+		node_lookup[type] += num_nodes[i];
 	}
-	node_lookup[type] += num_nodes[i];
-    }
 
-    /* Initialize all fields of each node. */
-    for (int i = 0; i < num; i++) {
-	struct node *n = &node_lookup[type][i];
-	n->id = i;
-	n->type = type;
-	memset(n->refcount, 0, sizeof(n->refcount));
-	n->parent = NULL;
-	n->children = &node_lookup[child_node_type(type)][i * nchildren];
-	for (int j = 0; j < nchildren; j++)
-	    n->children[j].parent = n;
-    }
+	/* Initialize all fields of each node. */
+	for (int i = 0; i < num; i++) {
+		struct node *n = &node_lookup[type][i];
+		n->id = i;
+		n->type = type;
+		memset(n->refcount, 0, sizeof(n->refcount));
+		n->parent = NULL;
+		n->children = &node_lookup[child_node_type(type)][i * nchildren];
+		for (int j = 0; j < nchildren; j++)
+			n->children[j].parent = n;
+	}
 }
 
 /* Allocate a flat array of core_distances. */
 static void init_core_distances()
 {
-    if ((core_distance = malloc(num_cores * sizeof(int*))) != NULL)
-	for (int i = 0; i < num_cores; i++ ) {
-	    if ((core_distance[i] = malloc(num_cores*sizeof(int))) == NULL )
-		exit(-1);
-	}
-    for (int i = 0; i < num_cores; i++ ) {
-	for (int j = 0; j < num_cores; j++ ) {
-	    for (int k = CORE; k<= NUMA; k++) {
-		if (i/max_refcount[k][0] == j/max_refcount[k][0]) {
-		    core_distance[i][j] = k*2;
-		    break;
+	if ((core_distance = malloc(num_cores * sizeof(int*))) != NULL) {
+		for (int i = 0; i < num_cores; i++ ) {
+			if ((core_distance[i] = malloc(num_cores * sizeof(int))) == NULL)
+				exit(-1);
 		}
-	    }
+		for (int i = 0; i < num_cores; i++ ) {
+			for (int j = 0; j < num_cores; j++ ) {
+				for (int k = CORE; k<= NUMA; k++) {
+					if (i/max_refcount[k][0] == j/max_refcount[k][0]) {
+						core_distance[i][j] = k * 2;
+						break;
+					}
+				}
+			}
+		}
 	}
-    }
 }
 
 /* Build our available nodes structure. */
 void nodes_init()
 {
-  /* Allocate a flat array of nodes. */
-    total_nodes = num_cores + num_chips + num_sockets + num_numa;
-    node_list = malloc(total_nodes * sizeof(struct node));
-    
-    /* Initialize the nodes at each level in our hierarchy. */
-    init_nodes(CORE, num_cores, 0);
-    init_nodes(CHIP, num_chips, cores_per_chip);
-    init_nodes(SOCKET, num_sockets, chips_per_socket);
-    init_nodes(NUMA, num_numa, sockets_per_numa);
+	/* Allocate a flat array of nodes. */
+	total_nodes = num_cores + num_chips + num_sockets + num_numa;
+	node_list = malloc(total_nodes * sizeof(struct node));
 
-    /* Initialize our 2 dimensions array of core_distance */
-    init_core_distances();
+	/* Initialize the nodes at each level in our hierarchy. */
+	init_nodes(CORE, num_cores, 0);
+	init_nodes(CHIP, num_chips, cores_per_chip);
+	init_nodes(SOCKET, num_sockets, chips_per_socket);
+	init_nodes(NUMA, num_numa, sockets_per_numa);
+
+	/* Initialize our 2 dimensions array of core_distance */
+	init_core_distances();
 }
 
 /* Returns the first child of type in parameter for the node n. */
 static struct node *first_core(struct node *n)
 {
-    struct node *first_child = n;
-    while (first_child->type != CORE) 
-	first_child = &first_child->children[0];
-    return first_child;
+	struct node *first_child = n;
+	while (first_child->type != CORE) 
+		first_child = &first_child->children[0];
+	return first_child;
 }
 
 /* Returns the core_distance of one core from the cores owned by proc p */
 static int calc_core_distance(struct node *n, struct core_list cl)
 {
-    int d = 0;
-    struct node *temp = NULL;
-    STAILQ_FOREACH(temp, &cl, link) {
-	d += core_distance[n->id][temp->id];
-    }
-    return d;
+	int d = 0;
+	struct node *temp = NULL;
+	STAILQ_FOREACH(temp, &cl, link) {
+		d += core_distance[n->id][temp->id];
+	}
+	return d;
 }
 
 /* Consider first core siblings of the cores the proc already own. Calculate for
@@ -161,65 +161,64 @@ static int calc_core_distance(struct node *n, struct core_list cl)
  * proc owns. Allocate the core that has the lowest core_distance. */
 static struct node *find_best_core(struct proc *p)
 {
-    int bestd = 0;
-    struct core_list core_owned = p->core_owned;
-    struct node *bestn = NULL;
-    struct node *np = NULL;
-    int sibling_id = 0;
-    for (int k = CHIP; k <= NUM_NODE_TYPES ; k++){
-	STAILQ_FOREACH(np, &core_owned, link) {
-	    int nb_cores = max_refcount[k][0];
-	    int type_id = np->id / nb_cores;
-	    for (int i = 0; i < nb_cores; i++) {
-		sibling_id = i + nb_cores*type_id;
-		struct node *core_sibling = &node_lookup[CORE][sibling_id];
-		if (core_sibling->refcount[CORE] == 0) {
-		    int sibd = calc_core_distance(core_sibling,core_owned) ;
-		    if (bestd == 0 || 
-			sibd < bestd) {
-			bestd = sibd ;
-			bestn = core_sibling;
-		    }
+	int bestd = 0;
+	struct core_list core_owned = p->core_owned;
+	struct node *bestn = NULL;
+	struct node *np = NULL;
+	int sibling_id = 0;
+	for (int k = CHIP; k <= NUM_NODE_TYPES ; k++) {
+		STAILQ_FOREACH(np, &core_owned, link) {
+			int nb_cores = max_refcount[k][0];
+			int type_id = np->id / nb_cores;
+			for (int i = 0; i < nb_cores; i++) {
+				sibling_id = i + nb_cores*type_id;
+				struct node *core_sibling = &node_lookup[CORE][sibling_id];
+				if (core_sibling->refcount[CORE] == 0) {
+					int sibd = calc_core_distance(core_sibling,core_owned);
+					if (bestd == 0 || sibd < bestd) {
+						bestd = sibd;
+						bestn = core_sibling;
+					}
+				}
+			}
 		}
-	    }
+		if (bestn != NULL)
+			return bestn;
 	}
-	if (bestn != NULL)
-	    return bestn;
-    }
-    return NULL;
+	return NULL;
 }
 
 /* Returns the best first node to allocate for a proc whic has no core. 
  * Return the node that is the farthest from the others. */
 static struct node *find_first_core()
 {
-    int best_refcount = 0;
-    struct node *bestn = NULL;
-    struct node *n = NULL;
-    struct node *siblings = node_lookup[NUMA];
-    int num_siblings = 1;
+	int best_refcount = 0;
+	struct node *bestn = NULL;
+	struct node *n = NULL;
+	struct node *siblings = node_lookup[NUMA];
+	int num_siblings = 1;
 
-    for (int i = NUMA; i >= CORE; i--) {
-	for (int j = 0; j < num_siblings; j++) {
-	    n = &siblings[j];
-	    if (n->refcount[CORE] == 0)
-		return first_core(n);
-	    if (best_refcount == 0)
-		best_refcount = n->refcount[CORE];
-	    if (n->refcount[CORE] <= best_refcount &&
-		n->refcount[CORE] < max_refcount[i][CORE]) {
-		best_refcount = n->refcount[CORE];
-		bestn = n;
-	    }
+	for (int i = NUMA; i >= CORE; i--) {
+		for (int j = 0; j < num_siblings; j++) {
+			n = &siblings[j];
+			if (n->refcount[CORE] == 0)
+				return first_core(n);
+			if (best_refcount == 0)
+				best_refcount = n->refcount[CORE];
+			if (n->refcount[CORE] <= best_refcount &&
+				n->refcount[CORE] < max_refcount[i][CORE]) {
+				best_refcount = n->refcount[CORE];
+				bestn = n;
+			}
+		}
+		if (i == CORE || bestn == NULL)
+			break;
+		siblings = bestn->children;
+		num_siblings = num_children[i];
+		best_refcount = 0;
+		bestn = NULL;
 	}
-	if (i == CORE || bestn == NULL)
-	    break;
-	siblings = bestn->children;
-	num_siblings = num_children[i];
-	best_refcount = 0;
-	bestn = NULL;
-    }
-    return bestn;
+	return bestn;
 }
 
 /* Recursively incref a node from its level through its ancestors.  At the
@@ -228,20 +227,20 @@ static struct node *find_first_core()
  * the refcount of the children. */
 static void incref_node_recursive(struct node *n)
 {
-    int type;
-    struct node *p;
-    while (n != NULL) {
-	type = n->type;
-	if (n->refcount[type] == 0) {
-	    n->refcount[type]++;
-	    p = n->parent;
-	    while (p != NULL) {
-		p->refcount[type]++;
-		p = p->parent;
-	    }
+	int type;
+	struct node *p;
+	while (n != NULL) {
+		type = n->type;
+		if (n->refcount[type] == 0) {
+			n->refcount[type]++;
+			p = n->parent;
+			while (p != NULL) {
+				p->refcount[type]++;
+				p = p->parent;
+			}
+		}
+		n = n->parent;
 	}
-	n = n->parent;
-    }
 }
 
 /* Recursively decref a node from its level through its ancestors.  If the
@@ -249,50 +248,49 @@ static void incref_node_recursive(struct node *n)
  * current node is 0 to decrement its refcount. */
 static void decref_node_recursive(struct node *n)
 {
-    int type;
-    struct node *p;
-    while (n != NULL) {
-	type = n->type;
-	if ((type == CORE) || (n->refcount[child_node_type(type)] == 0)) {
-	    n->refcount[type]--;
-	    p = n->parent;
-	    while (p != NULL) {
-		p->refcount[type]--;
-		p = p->parent;
-	    }
+	int type;
+	struct node *p;
+	while (n != NULL) {
+		type = n->type;
+		if ((type == CORE) || (n->refcount[child_node_type(type)] == 0)) {
+			n->refcount[type]--;
+			p = n->parent;
+			while (p != NULL) {
+				p->refcount[type]--;
+				p = p->parent;
+			}
+		}
+		n = n->parent;
 	}
-	n = n->parent;
-    }
 }
 
 /* Allocate a specific core. */
 static struct node *alloc_core(struct node *n, struct proc *p)
 {
-    if (n == NULL || n->refcount[n->type] ||  n->allocated_to == p) {
-	return NULL;
-    } else {
-	n->allocated_to = p;
-	if (num_children[n->type] == 0)
-	    incref_node_recursive(n);
-	for (int i = 0; i < num_children[n->type]; i++)
-	    alloc_core(&n->children[i], p);
-	return n;
-    }
+	if (n == NULL || n->refcount[n->type] ||  n->allocated_to == p) {
+		return NULL;
+	} else {
+		n->allocated_to = p;
+		if (num_children[n->type] == 0)
+			incref_node_recursive(n);
+		for (int i = 0; i < num_children[n->type]; i++)
+			alloc_core(&n->children[i], p);
+		return n;
+	}
 }
 
 /* Free a specific core. */
 static int free_core(int core_id, struct proc *p)
 {
-    struct node *n = &node_lookup[CORE][core_id];
-    if (n == NULL || n->type != CORE || n->allocated_to != p) {
-	return -1;
-    } else {
-	n->allocated_to = NULL;
-	STAILQ_REMOVE(&(p->core_owned), 
-		      n, node, link);
-	decref_node_recursive(n);
-	return 0;
-    }
+	struct node *n = &node_lookup[CORE][core_id];
+	if (n == NULL || n->type != CORE || n->allocated_to != p) {
+		return -1;
+	} else {
+		n->allocated_to = NULL;
+		STAILQ_REMOVE(&(p->core_owned), n, node, link);
+		decref_node_recursive(n);
+		return 0;
+	}
 }
 
 /* Allocates the *best* node from our node structure. *Best* could have
@@ -301,120 +299,118 @@ static int free_core(int core_id, struct proc *p)
  * increfed in the process, effectively allocating them as well. */
 static struct node *alloc_best_core(struct proc *p)
 {
-    return alloc_core(find_best_core(p), p);
+	return alloc_core(find_best_core(p), p);
 }
 
 static struct node *alloc_first_core(struct proc *p)
 {
-    return alloc_core(find_first_core(), p);
+	return alloc_core(find_first_core(), p);
 }
 
-/* This function turns a node into a list of its cores. For exemple, if the node
- * allocated is a socket of 8 cores, this function will return a list of the 8 
- * cores composing the socket. If we can't get one of the core of the node, we 
- * return an empty core list. */
+/* This function turns a node into a list of its cores. For exemple, if the
+ * node allocated is a socket of 8 cores, this function will return a list of
+ * the 8 cores composing the socket. If we can't get one of the core of the
+ * node, we return an empty core list. */
 static struct core_list node2list(struct node *n) 
 {
-    struct core_list core_available = 
-	STAILQ_HEAD_INITIALIZER(core_available);
-    if (n != NULL) {
-	if (n->type == CORE) {
-	    STAILQ_INSERT_TAIL(&core_available, 
-			       &node_lookup[CORE][n->id], link);
-	} else {
-	    int cores_in_node = max_refcount[n->type][CORE];
-	    for (int i = 0; i < cores_in_node; i++) {
-		int index = i +	n->id*cores_in_node; 
-		STAILQ_INSERT_TAIL(&core_available, 
-				   &node_lookup[CORE][index],
-				   link);
-	    }
+	struct core_list core_available = STAILQ_HEAD_INITIALIZER(core_available);
+	if (n != NULL) {
+		if (n->type == CORE) {
+			STAILQ_INSERT_TAIL(&core_available,
+			                   &node_lookup[CORE][n->id], link);
+		} else {
+			int cores_in_node = max_refcount[n->type][CORE];
+			for (int i = 0; i < cores_in_node; i++) {
+				int index = i +	n->id*cores_in_node; 
+				STAILQ_INSERT_TAIL(&core_available, 
+				                   &node_lookup[CORE][index], link);
+			}
+		}
 	}
-    }
-    return core_available;
+	return core_available;
 }
-    
+ 
 /* Enable to handle multi "any" allocations given the number and the type of 
  * nodes we want. Concat the list of cores and returns it. 
  * If we can't get one of the requested core, we return an empty core list. */
 static void concat_list(int amt, struct proc *p, enum node_type type) {
-    if (amt > num_nodes[type])
-	return;
-    for (int i = 0; i < amt; i++) {
-	if (STAILQ_FIRST(&(p->core_owned)) == NULL) {	
-	    struct core_list temp = node2list(alloc_first_core(p));
-	    p->core_owned = temp;
-	} else {
-	    struct core_list temp = node2list(alloc_best_core(p));
-	    if (STAILQ_FIRST(&temp) == NULL)
+	if (amt > num_nodes[type])
 		return;
-	    else
-		STAILQ_CONCAT(&(p->core_owned), &temp);
+
+	for (int i = 0; i < amt; i++) {
+		if (STAILQ_FIRST(&(p->core_owned)) == NULL) {
+			struct core_list temp = node2list(alloc_first_core(p));
+			p->core_owned = temp;
+		} else {
+			struct core_list temp = node2list(alloc_best_core(p));
+			if (STAILQ_FIRST(&temp) == NULL)
+				return;
+			else
+				STAILQ_CONCAT(&(p->core_owned), &temp);
+		}
 	}
-    }
 }
 
 void alloc_core_any(int amt, struct proc *p)
 {
-    concat_list(amt, p, CORE);
+	concat_list(amt, p, CORE);
 }
 
 void alloc_core_specific(int core_id, struct proc *p)
 {  
-    alloc_core(&node_lookup[CORE][core_id], p);	
+	alloc_core(&node_lookup[CORE][core_id], p);	
 }
 
 void print_node(struct node *n)
 {
-    printf("%-6s id: %2d, type: %d, num_children: %2d",
-	   node_label[n->type], n->id, n->type,
-	   num_children[n->type]);
-    for (int i = n->type ; i>-1; i--) {
-	printf(", refcount[%d]: %2d", i, n->refcount[i]);
-    }
-    if (n->parent) {
-	printf(", parent_id: %2d, parent_type: %d\n",
-	       n->parent->id, n->parent->type);
-    } else {
-	printf("\n");
-    }
+	printf("%-6s id: %2d, type: %d, num_children: %2d",
+	       node_label[n->type], n->id, n->type,
+	       num_children[n->type]);
+	for (int i = n->type ; i>-1; i--) {
+		printf(", refcount[%d]: %2d", i, n->refcount[i]);
+	}
+	if (n->parent) {
+		printf(", parent_id: %2d, parent_type: %d\n",
+		       n->parent->id, n->parent->type);
+	} else {
+		printf("\n");
+	}
 }
 
 void print_nodes(int type)
 {
-    struct node *n = NULL;
-    for (int i = 0; i < num_nodes[type]; i++) {
-	print_node(&node_lookup[type][i]);
-    }
+	struct node *n = NULL;
+	for (int i = 0; i < num_nodes[type]; i++) {
+		print_node(&node_lookup[type][i]);
+	}
 }
 
 void print_all_nodes()
 {
-    for (int i = NUMA; i >= CORE; i--)
-	print_nodes(i);
+	for (int i = NUMA; i >= CORE; i--)
+		print_nodes(i);
 }
 
 void test_structure(){
-    struct node *np = NULL;
-    struct proc *p1 = malloc(sizeof(struct proc));
-    struct proc *p2 = malloc(sizeof(struct proc));
-    struct core_list list = STAILQ_HEAD_INITIALIZER(list);     
+	struct node *np = NULL;
+	struct proc *p1 = malloc(sizeof(struct proc));
+	struct proc *p2 = malloc(sizeof(struct proc));
+	struct core_list list = STAILQ_HEAD_INITIALIZER(list);
 
-    p1->core_owned = list;
-    p2->core_owned = list;
-    alloc_core_any(3,p1);
-    alloc_core_specific(3,p2);
-    alloc_core_any(1,p1);
-    free_core(0,p2);
-    STAILQ_FOREACH(np, &(p1->core_owned), link) {
-	printf("I am core %d, refcount: %d\n",
-	       np->id,np->refcount[0]);
-    }
-    /* print_all_nodes(); */
-    free_core(4,p1);
-    /* printf("\nAFTER\n\n"); */
-    /* print_all_nodes(); */
-    /* struct core_list test = alloc_core_any(1); */
-    /* printf("\nAFTER\n\n"); */
-    print_all_nodes();
+	p1->core_owned = list;
+	p2->core_owned = list;
+	alloc_core_any(3,p1);
+	alloc_core_specific(3,p2);
+	alloc_core_any(1,p1);
+	free_core(0,p2);
+	STAILQ_FOREACH(np, &(p1->core_owned), link) {
+		printf("I am core %d, refcount: %d\n", np->id,np->refcount[0]);
+	}
+	/* print_all_nodes(); */
+	free_core(4,p1);
+	/* printf("\nAFTER\n\n"); */
+	/* print_all_nodes(); */
+	/* struct core_list test = alloc_core_any(1); */
+	/* printf("\nAFTER\n\n"); */
+	print_all_nodes();
 }

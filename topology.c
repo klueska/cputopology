@@ -60,109 +60,106 @@ int *hw_coreid_lookup;
 
 static void adjust_ids(int id_offset)
 {
-    int new_id = 0, old_id = -1;
-    for (int i=0; i<num_cores_power2; i++) {
-	for (int j=0; j<num_cores_power2; j++) {
-	    int *id_field = ((void*)&core_list[j] + id_offset);
-	    if (*id_field >= new_id) {
-		if (old_id == -1)
-		    old_id = *id_field;
-		if (old_id == *id_field)
-		    *id_field = new_id;
-	    }
+	int new_id = 0, old_id = -1;
+	for (int i=0; i<num_cores_power2; i++) {
+		for (int j=0; j<num_cores_power2; j++) {
+			int *id_field = ((void*)&core_list[j] + id_offset);
+			if (*id_field >= new_id) {
+				if (old_id == -1)
+					old_id = *id_field;
+				if (old_id == *id_field)
+					*id_field = new_id;
+			}
+		}
+		old_id = -1;
+		new_id++;
 	}
-	old_id = -1;
-	new_id++;
-    }
 }
 
 void fill_topology_lookup_maps()
 {
-    int last_numa = -1, last_socket = -1, last_chip = -1, last_core = -1;
-    for (int i=0; i<num_cores_power2; i++) {
-	if (core_list[i].online) {
-	    if (core_list[i].numa_id > last_numa) {
-		last_numa = core_list[i].numa_id;
-		num_numa++;
-	    }
-	    if (core_list[i].socket_id > last_socket) {
-		last_socket = core_list[i].socket_id;
-		sockets_per_numa++;
-	    }
-	    if (core_list[i].chip_id > last_chip) {
-		last_chip = core_list[i].chip_id;
-		chips_per_socket++;
-	    }
-	    if (core_list[i].core_id > last_core) {
-		last_core = core_list[i].core_id;
-		cores_per_chip++;
-	    }
-	    hw_coreid_lookup[num_cores] = i;
-	    os_coreid_lookup[i] = num_cores;
-	    num_cores++;
+	int last_numa = -1, last_socket = -1, last_chip = -1, last_core = -1;
+	for (int i=0; i<num_cores_power2; i++) {
+		if (core_list[i].online) {
+			if (core_list[i].numa_id > last_numa) {
+				last_numa = core_list[i].numa_id;
+				num_numa++;
+		 	}
+			if (core_list[i].socket_id > last_socket) {
+				last_socket = core_list[i].socket_id;
+				sockets_per_numa++;
+			}
+			if (core_list[i].chip_id > last_chip) {
+				last_chip = core_list[i].chip_id;
+				chips_per_socket++;
+			}
+			if (core_list[i].core_id > last_core) {
+				last_core = core_list[i].core_id;
+				cores_per_chip++;
+			}
+			hw_coreid_lookup[num_cores] = i;
+			os_coreid_lookup[i] = num_cores;
+			num_cores++;
+		}
 	}
-    }
-    cores_per_socket = chips_per_socket * cores_per_chip;
-    cores_per_numa = sockets_per_numa * cores_per_socket;
-    num_sockets = sockets_per_numa * num_numa;
-    num_chips = chips_per_socket * num_sockets;
+	cores_per_socket = chips_per_socket * cores_per_chip;
+	cores_per_numa = sockets_per_numa * cores_per_socket;
+	num_sockets = sockets_per_numa * num_numa;
+	num_chips = chips_per_socket * num_sockets;
 }
 
 static void init_topology_info()
 {
-    core_list = malloc(num_cores_power2*sizeof(struct core_info));
-    os_coreid_lookup = malloc(num_cores_power2*sizeof(int));
-    hw_coreid_lookup = malloc(num_cores_power2*sizeof(int));
+	core_list = malloc(num_cores_power2*sizeof(struct core_info));
+	os_coreid_lookup = malloc(num_cores_power2*sizeof(int));
+	hw_coreid_lookup = malloc(num_cores_power2*sizeof(int));
 }
 
 static void build_topology(uint32_t core_bits, uint32_t chip_bits)
 {
-    int max_cores_per_chip = (1 << core_bits);
-    int max_cores_per_socket = (1 << chip_bits);
-    num_cores_power2 = (1 << (core_bits + chip_bits));
-    uint32_t apic_id = 0, core_id = 0, chip_id = 0, socket_id = 0;
+	int max_cores_per_chip = (1 << core_bits);
+	int max_cores_per_socket = (1 << chip_bits);
+	num_cores_power2 = (1 << (core_bits + chip_bits));
 
-    init_topology_info();
+	init_topology_info();
 
-    int i = 0;
-    struct Apicst *temp = apics->st;
-    while (temp) {
-	if (temp->type == ASlapic) {
-	    apic_id = temp->lapic.id;
-	    socket_id = apic_id & ~(num_cores_power2 - 1);
-	    chip_id = (apic_id >> core_bits) & (max_cores_per_socket - 1);
-	    core_id = apic_id & (max_cores_per_chip - 1);
+	uint32_t apic_id = 0, core_id = 0, chip_id = 0, socket_id = 0;
+	struct Apicst *temp = apics->st;
+	while (temp) {
+		if (temp->type == ASlapic) {
+			apic_id = temp->lapic.id;
+			socket_id = apic_id & ~(num_cores_power2 - 1);
+			chip_id = (apic_id >> core_bits) & (max_cores_per_socket - 1);
+			core_id = apic_id & (max_cores_per_chip - 1);
 
-	    /* TODO: Build numa topology properly */
-	    core_list[apic_id].numa_id = 0;
-	    core_list[apic_id].socket_id = socket_id;
-	    core_list[apic_id].chip_id = chip_id;
-	    core_list[apic_id].core_id = core_id;
-	    core_list[apic_id].online = false;
-	    i++;
+			/* TODO: Build numa topology properly */
+			core_list[apic_id].numa_id = 0;
+			core_list[apic_id].socket_id = socket_id;
+			core_list[apic_id].chip_id = chip_id;
+			core_list[apic_id].core_id = core_id;
+			core_list[apic_id].online = false;
+		}
+		temp = temp->next;
 	}
-	temp = temp->next;
-    }
-    adjust_ids(offsetof(struct core_info, socket_id));
-    adjust_ids(offsetof(struct core_info, chip_id));
-    adjust_ids(offsetof(struct core_info, core_id));
+	adjust_ids(offsetof(struct core_info, socket_id));
+	adjust_ids(offsetof(struct core_info, chip_id));
+	adjust_ids(offsetof(struct core_info, core_id));
 }
 
 static void build_flat_topology()
 {
-    int i = 0;
-    struct Apicst *temp = apics->st;
-    while (temp) {
-	if (temp->type == ASlapic) {
-	    int apic_id = temp->lapic.id;
-	    core_list[apic_id].numa_id = 0;
-	    core_list[apic_id].socket_id = 0;
-	    core_list[apic_id].chip_id = 0;
-	    core_list[apic_id].core_id = 0;
-	    core_list[apic_id].online = false;
+	struct Apicst *temp = apics->st;
+	while (temp) {
+		if (temp->type == ASlapic) {
+			int apic_id = temp->lapic.id;
+			core_list[apic_id].numa_id = 0;
+			core_list[apic_id].socket_id = 0;
+			core_list[apic_id].chip_id = 0;
+			core_list[apic_id].core_id = 0;
+			core_list[apic_id].online = false;
+		}
+		temp = temp->next;
 	}
-	temp = temp->next;
-    }
 }
 
 void topology_init()
@@ -194,45 +191,42 @@ void topology_init()
 
 int numa_domain()
 {
-    struct core_info *c = &core_list[get_apic_id()];
-    return c->numa_id;
+	struct core_info *c = &core_list[get_apic_id()];
+	return c->numa_id;
 }
 
 int socketid()
 {
-    struct core_info *c = &core_list[get_apic_id()];
-    return num_sockets/num_numa * numa_domain() +
-	c->socket_id;
+	struct core_info *c = &core_list[get_apic_id()];
+	return num_sockets/num_numa * numa_domain() + c->socket_id;
 }
 
 int chipid()
 {
-    struct core_info *c = &core_list[get_apic_id()];
-    return num_chips/num_sockets * socketid() +
-	c->chip_id;
+	struct core_info *c = &core_list[get_apic_id()];
+	return num_chips/num_sockets * socketid() + c->chip_id;
 }
 
 int coreid()
 {
-    struct core_info *c = &core_list[get_apic_id()];
-    return num_cores/num_chips * chipid() +
-	c->core_id;
+	struct core_info *c = &core_list[get_apic_id()];
+	return num_cores/num_chips * chipid() + c->core_id;
 }
 
 void print_cpu_topology() 
 {
-    printf("num_numa: %d, num_sockets: %d, num_chips: %d, num_cores: %d\n",
-	   num_numa, num_sockets, num_chips, num_cores);
-    for (int i=0; i < num_cores; i++) {
-	int coreid = hw_coreid_lookup[i];
-	printf("OScoreid: %3d, HWcoreid: %3d, Numa Domain: %3d, "
-	       "Socket: %3d, Chip: %3d, Core: %3d\n",
-	       i,
-	       coreid,
-	       core_list[coreid].numa_id,
-	       core_list[coreid].socket_id,
-	       core_list[coreid].chip_id,
-	       core_list[coreid].core_id);
-    }
+	printf("num_numa: %d, num_sockets: %d, num_chips: %d, num_cores: %d\n",
+	       num_numa, num_sockets, num_chips, num_cores);
+	for (int i=0; i < num_cores; i++) {
+		int coreid = hw_coreid_lookup[i];
+		printf("OScoreid: %3d, HWcoreid: %3d, Numa Domain: %3d, "
+		       "Socket: %3d, Chip: %3d, Core: %3d\n",
+		       i,
+		       coreid,
+		       core_list[coreid].numa_id,
+		       core_list[coreid].socket_id,
+		       core_list[coreid].chip_id,
+		       core_list[coreid].core_id);
+	}
 }
 
