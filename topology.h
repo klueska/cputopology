@@ -28,7 +28,7 @@ struct topology_info {
 	int cores_per_numa;
 	int cpus_per_socket;
 	int sockets_per_numa;
-	int max_logical_cores;
+	int max_apic_id;
 	struct core_info *core_list;
 };
 
