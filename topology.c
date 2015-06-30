@@ -110,9 +110,9 @@ void fill_topology_lookup_maps()
 
 static void init_topology_info()
 {
-	core_list = malloc(num_cores_power2*sizeof(struct core_info));
-	os_coreid_lookup = malloc(num_cores_power2*sizeof(int));
-	hw_coreid_lookup = malloc(num_cores_power2*sizeof(int));
+	core_list = calloc(num_cores_power2, sizeof(struct core_info));
+	os_coreid_lookup = calloc(num_cores_power2, sizeof(int));
+	hw_coreid_lookup = calloc(num_cores_power2, sizeof(int));
 }
 
 static void build_topology(uint32_t core_bits, uint32_t chip_bits)
