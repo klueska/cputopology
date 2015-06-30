@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <sched.h>
 #include <malloc.h>
+#include <string.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -44,7 +45,6 @@
 
 struct topology_info cpu_topology_info;
 int *os_coreid_lookup;
-int *hw_coreid_lookup;
 
 #define num_cores           (cpu_topology_info.num_cores)
 #define num_cpus            (cpu_topology_info.num_cpus)
@@ -61,8 +61,8 @@ int *hw_coreid_lookup;
 static void adjust_ids(int id_offset)
 {
 	int new_id = 0, old_id = -1;
-	for (int i = 0; i < max_logical_cores; i++) {
-		for (int j = 0; j < max_logical_cores; j++) {
+	for (int i = 0; i < num_cpus; i++) {
+		for (int j = 0; j < num_cpus; j++) {
 			int *id_field = ((void*)&core_list[j] + id_offset);
 			if (*id_field >= new_id) {
 				if (old_id == -1)
@@ -76,74 +76,110 @@ static void adjust_ids(int id_offset)
 	}
 }
 
-static void fill_topology_lookup_maps()
+static void build_topology(uint32_t core_bits, uint32_t cpu_bits)
 {
-	int last_numa = -1, last_socket = -1, last_cpu = -1, last_core = -1;
-	for (int i = 0; i < max_logical_cores; i++) {
-		if (core_list[i].online) {
-			if (core_list[i].numa_id > last_numa) {
-				last_numa = core_list[i].numa_id;
-				num_numa++;
-		 	}
-			if (core_list[i].socket_id > last_socket) {
-				last_socket = core_list[i].socket_id;
-				sockets_per_numa++;
-			}
-			if (core_list[i].cpu_id > last_cpu) {
-				last_cpu = core_list[i].cpu_id;
-				cpus_per_socket++;
-			}
-			if (core_list[i].core_id > last_core) {
-				last_core = core_list[i].core_id;
-				cores_per_cpu++;
-			}
-			hw_coreid_lookup[num_cores] = i;
-			os_coreid_lookup[i] = num_cores;
+	/* The core_bits parameter tells us how many bits of the apic_id are used
+	 * for hyperthreads and cpu_bits tells us the number of bits used for the
+	 * cpus available on our system.  Use this information to calculate the
+	 * maximum number of logical cores representable by the apic_id. */
+	max_logical_cores = (1 << (core_bits + cpu_bits));
+
+	/* Allocate max_logical_cores entries in our os_coreid_lookup table.
+	 * There may be holes in this table because of the way apic_ids work, but
+	 * a little wasted space is OK for a constant time lookup of apic_id ->
+	 * logical core id (from the os's perspective). Memset the array to -1 to
+	 * to represent invalid entries (which it's very possible we might have if
+	 * the apic_id space has holes in it).  */
+	os_coreid_lookup = malloc(max_logical_cores * sizeof(int));
+	memset(os_coreid_lookup, -1, max_logical_cores * sizeof(int));
+
+	/* Loop through and set all valid entries to 0 to start with (making them
+	 * temporarily valid, but not yet set to the correct value). This step is
+	 * necessary because there is no ordering to the linked list we are
+	 * pulling these ids from. Also calculate our total num_cores in this
+	 * step. */
+	struct Apicst *temp = apics->st;
+	while (temp) {
+		if (temp->type == ASlapic) {
+			os_coreid_lookup[temp->lapic.id] = 0;
 			num_cores++;
+		}
+		temp = temp->next;
+	}
+
+	/* Now that we know num_cpus we can allocate our core_list to the proper
+	 * size. Initialize all entries to 0s to being with. */
+	core_list = calloc(num_cores, sizeof(struct core_info));
+
+	/* Now loop back through all possible apic_ids and fill in the
+	 * core_list array with *relative* topology info. We will change this
+	 * relative info to absolute info in a future step. As part of this step,
+	 * we update our os_coreid_lookup array to contain the proper value.  */
+	int os_coreid = 0;
+	int max_cpus = (1 << cpu_bits);
+	int max_cores_per_cpu = (1 << core_bits);
+	uint32_t core_id = 0, cpu_id = 0, socket_id = 0;
+	for (int apic_id = 0; apic_id < max_logical_cores; apic_id++) {
+		if (os_coreid_lookup[apic_id] == 0) {
+			socket_id = apic_id & ~(max_logical_cores - 1);
+			cpu_id = (apic_id >> core_bits) & (max_cpus - 1);
+			core_id = apic_id & (max_cores_per_cpu - 1);
+
+			/* TODO: Build numa topology properly */
+			core_list[os_coreid].numa_id = 0;
+			core_list[os_coreid].socket_id = socket_id;
+			core_list[os_coreid].cpu_id = cpu_id;
+			core_list[os_coreid].core_id = core_id;
+			core_list[os_coreid].apic_id = apic_id;
+			os_coreid_lookup[apic_id] = os_coreid++;
+		}
+	}
+
+	/* The various id's set in the previous step are all unique in terms of
+	 * representing the topology (i.e. all cores under the same socket have
+	 * the same socket_id set), but these id's are not necessarily contiguous,
+	 * and are only relative to the level of the hierarchy they exist at (e.g.
+	 * cpu_id 4 may exist under *both* socke_id 0 and socket_id 1). In this
+	 * step, we Squash these id's down so they are contiguous. In a following
+	 * step, we will make them all absolute instead of relative. */
+	adjust_ids(offsetof(struct core_info, socket_id));
+	adjust_ids(offsetof(struct core_info, cpu_id));
+	adjust_ids(offsetof(struct core_info, core_id));
+
+	/* Now that we have all of our relative ids contigiuous, loop through our
+	 * core_list and calculate the other statistics that we hold in our
+	 * cpu_topology_info struct. */
+	int last_numa = -1, last_socket = -1, last_cpu = -1, last_core = -1;
+	for (int i = 0; i < num_cores; i++) {
+		if (core_list[i].numa_id > last_numa) {
+			last_numa = core_list[i].numa_id;
+			num_numa++;
+		}
+		if (core_list[i].socket_id > last_socket) {
+			last_socket = core_list[i].socket_id;
+			sockets_per_numa++;
+		}
+		if (core_list[i].cpu_id > last_cpu) {
+			last_cpu = core_list[i].cpu_id;
+			cpus_per_socket++;
+		}
+		if (core_list[i].core_id > last_core) {
+			last_core = core_list[i].core_id;
+			cores_per_cpu++;
 		}
 	}
 	cores_per_socket = cpus_per_socket * cores_per_cpu;
 	cores_per_numa = sockets_per_numa * cores_per_socket;
 	num_sockets = sockets_per_numa * num_numa;
 	num_cpus = cpus_per_socket * num_sockets;
-}
 
-static void init_topology_info()
-{
-	core_list = calloc(max_logical_cores, sizeof(struct core_info));
-	os_coreid_lookup = calloc(max_logical_cores, sizeof(int));
-	hw_coreid_lookup = calloc(max_logical_cores, sizeof(int));
-}
-
-static void build_topology(uint32_t core_bits, uint32_t cpu_bits)
-{
-	int max_cpus = (1 << cpu_bits);
-	int max_cores_per_cpu = (1 << core_bits);
-	max_logical_cores = (1 << (core_bits + cpu_bits));
-
-	init_topology_info();
-
-	uint32_t apic_id = 0, core_id = 0, cpu_id = 0, socket_id = 0;
-	struct Apicst *temp = apics->st;
-	while (temp) {
-		if (temp->type == ASlapic) {
-			apic_id = temp->lapic.id;
-			socket_id = apic_id & ~(max_logical_cores - 1);
-			cpu_id = (apic_id >> core_bits) & (max_cpus - 1);
-			core_id = apic_id & (max_cores_per_cpu - 1);
-
-			/* TODO: Build numa topology properly */
-			core_list[apic_id].numa_id = 0;
-			core_list[apic_id].socket_id = socket_id;
-			core_list[apic_id].cpu_id = cpu_id;
-			core_list[apic_id].core_id = core_id;
-			core_list[apic_id].online = true;
-		}
-		temp = temp->next;
+	/* Finally, fix up our core_list to have absolute id's at every level. */
+	for (int i = 0; i < num_cores; i++) {
+		struct core_info *c = &core_list[i];
+		c->socket_id = num_sockets/num_numa * c->numa_id + c->socket_id;
+		c->cpu_id = num_cpus/num_sockets * c->socket_id + c->cpu_id;
+		c->core_id = num_cores/num_cpus * c->cpu_id + c->core_id;
 	}
-	adjust_ids(offsetof(struct core_info, socket_id));
-	adjust_ids(offsetof(struct core_info, cpu_id));
-	adjust_ids(offsetof(struct core_info, core_id));
 }
 
 static void build_flat_topology()
@@ -152,11 +188,12 @@ static void build_flat_topology()
 	while (temp) {
 		if (temp->type == ASlapic) {
 			int apic_id = temp->lapic.id;
-			core_list[apic_id].numa_id = 0;
-			core_list[apic_id].socket_id = 0;
-			core_list[apic_id].cpu_id = 0;
-			core_list[apic_id].core_id = 0;
-			core_list[apic_id].online = true;
+			core_list[num_cpus].numa_id = 0;
+			core_list[num_cpus].socket_id = 0;
+			core_list[num_cpus].cpu_id = 0;
+			core_list[num_cpus].core_id = num_cpus;
+			core_list[num_cpus].apic_id = apic_id;
+			os_coreid_lookup[num_cpus] = num_cpus++;
 		}
 		temp = temp->next;
 	}
@@ -187,47 +224,46 @@ void topology_init()
 		build_topology(core_bits, cpu_bits);
 	else 
 		build_flat_topology();
-	fill_topology_lookup_maps();
+	print_cpu_topology();
 }
 
 int numa_domain()
 {
-	struct core_info *c = &core_list[get_apic_id()];
-	return c->numa_id;
+	int os_coreid = os_coreid_lookup[get_apic_id()];
+	return core_list[os_coreid].numa_id;
 }
 
 int socket_id()
 {
-	struct core_info *c = &core_list[get_apic_id()];
-	return num_sockets/num_numa * numa_domain() + c->socket_id;
+	int os_coreid = os_coreid_lookup[get_apic_id()];
+	return core_list[os_coreid].socket_id;
 }
 
 int cpu_id()
 {
-	struct core_info *c = &core_list[get_apic_id()];
-	return num_cpus/num_sockets * socket_id() + c->cpu_id;
+	int os_coreid = os_coreid_lookup[get_apic_id()];
+	return core_list[os_coreid].cpu_id;
 }
 
 int core_id()
 {
-	struct core_info *c = &core_list[get_apic_id()];
-	return num_cores/num_cpus * cpu_id() + c->core_id;
+	int os_coreid = os_coreid_lookup[get_apic_id()];
+	return core_list[os_coreid].core_id;
 }
 
 void print_cpu_topology() 
 {
 	printf("num_numa: %d, num_sockets: %d, num_cpus: %d, num_cores: %d\n",
 	       num_numa, num_sockets, num_cpus, num_cores);
-	for (int i=0; i < num_cores; i++) {
-		int coreid = hw_coreid_lookup[i];
+	for (int i = 0; i < num_cores; i++) {
 		printf("OScoreid: %3d, HWcoreid: %3d, Numa Domain: %3d, "
 		       "Socket: %3d, Cpu: %3d, Core: %3d\n",
 		       i,
-		       coreid,
-		       core_list[coreid].numa_id,
-		       core_list[coreid].socket_id,
-		       core_list[coreid].cpu_id,
-		       core_list[coreid].core_id);
+		       core_list[i].apic_id,
+		       core_list[i].numa_id,
+		       core_list[i].socket_id,
+		       core_list[i].cpu_id,
+		       core_list[i].core_id);
 	}
 }
 

@@ -15,7 +15,7 @@ struct core_info {
 	int socket_id;
 	int cpu_id;
 	int core_id;
-	bool online;
+	int apic_id;
 };
 
 struct topology_info {
@@ -34,7 +34,6 @@ struct topology_info {
 
 extern struct topology_info cpu_topology_info;
 extern int *os_coreid_lookup;
-extern int *hw_coreid_lookup;
 
 int numa_domain();
 int socket_id();
