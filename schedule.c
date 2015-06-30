@@ -206,7 +206,7 @@ static struct node *find_first_core()
 			if (best_refcount == 0)
 				best_refcount = n->refcount[CORE];
 			if (n->refcount[CORE] <= best_refcount &&
-				n->refcount[CORE] < max_refcount[i][CORE]) {
+			    n->refcount[CORE] < max_refcount[i][CORE]) {
 				best_refcount = n->refcount[CORE];
 				bestn = n;
 			}
@@ -358,7 +358,21 @@ void alloc_core_any(int amt, struct proc *p)
 
 void alloc_core_specific(int core_id, struct proc *p)
 {  
-	alloc_core(&node_lookup[CORE][core_id], p);	
+	alloc_core(&node_lookup[CORE][core_id], p);
+}
+
+void provision_core(int core_id, struct proc *p)
+{
+	struct node *n = &node_lookup[CORE][core_id];
+	if (n->provisioned_to == NULL)
+		n->provisioned_to = p;
+}
+
+void deprovision_core(int core_id, struct proc *p)
+{
+	struct node *n = &node_lookup[CORE][core_id];
+	if (n->provisioned_to != NULL)
+		n->provisioned_to = NULL;
 }
 
 void print_node(struct node *n)
@@ -391,7 +405,8 @@ void print_all_nodes()
 		print_nodes(i);
 }
 
-void test_structure(){
+void test_structure()
+{
 	struct node *np = NULL;
 	struct proc *p1 = malloc(sizeof(struct proc));
 	struct proc *p2 = malloc(sizeof(struct proc));
@@ -400,6 +415,7 @@ void test_structure(){
 	p1->core_owned = list;
 	p2->core_owned = list;
 	alloc_core_any(3,p1);
+	provision_core(3, p2);
 	alloc_core_specific(3,p2);
 	alloc_core_any(1,p1);
 	free_core(0,p2);
