@@ -271,6 +271,7 @@ static struct node *alloc_core(struct node *n, struct proc *p)
 		return NULL;
 	} else {
 		n->allocated_to = p;
+		n->provisioned_to = NULL;
 		if (num_children[n->type] == 0)
 			incref_node_recursive(n);
 		for (int i = 0; i < num_children[n->type]; i++)
@@ -358,7 +359,10 @@ void alloc_core_any(int amt, struct proc *p)
 
 void alloc_core_specific(int core_id, struct proc *p)
 {  
-	alloc_core(&node_lookup[CORE][core_id], p);
+	struct node *n = &node_lookup[CORE][core_id];
+	if (n->provisioned_to == p || (n->provisioned_to == NULL &&
+				       n->allocated_to == NULL))
+		alloc_core(n, p);
 }
 
 void provision_core(int core_id, struct proc *p)
