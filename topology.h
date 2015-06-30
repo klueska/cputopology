@@ -20,7 +20,6 @@ struct core_info {
 
 struct topology_info {
 	int num_cores;
-	int num_cores_power2;
 	int num_chips;
 	int num_sockets;
 	int num_numa;
@@ -29,6 +28,7 @@ struct topology_info {
 	int cores_per_chip;
 	int chips_per_socket;
 	int sockets_per_numa;
+	int max_logical_cores;
 	struct core_info *core_list;
 };
 

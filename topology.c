@@ -47,7 +47,6 @@ int *os_coreid_lookup;
 int *hw_coreid_lookup;
 
 #define num_cores           (cpu_topology_info.num_cores)
-#define num_cores_power2    (cpu_topology_info.num_cores_power2)
 #define num_chips           (cpu_topology_info.num_chips)
 #define num_sockets         (cpu_topology_info.num_sockets)
 #define num_numa            (cpu_topology_info.num_numa)
@@ -56,13 +55,14 @@ int *hw_coreid_lookup;
 #define cores_per_chip      (cpu_topology_info.cores_per_chip)
 #define chips_per_socket    (cpu_topology_info.chips_per_socket)
 #define sockets_per_numa    (cpu_topology_info.sockets_per_numa)
+#define max_logical_cores   (cpu_topology_info.max_logical_cores)
 #define core_list           (cpu_topology_info.core_list)
 
 static void adjust_ids(int id_offset)
 {
 	int new_id = 0, old_id = -1;
-	for (int i=0; i<num_cores_power2; i++) {
-		for (int j=0; j<num_cores_power2; j++) {
+	for (int i = 0; i < max_logical_cores; i++) {
+		for (int j = 0; j < max_logical_cores; j++) {
 			int *id_field = ((void*)&core_list[j] + id_offset);
 			if (*id_field >= new_id) {
 				if (old_id == -1)
@@ -79,7 +79,7 @@ static void adjust_ids(int id_offset)
 void fill_topology_lookup_maps()
 {
 	int last_numa = -1, last_socket = -1, last_chip = -1, last_core = -1;
-	for (int i=0; i<num_cores_power2; i++) {
+	for (int i = 0; i < max_logical_cores; i++) {
 		if (core_list[i].online) {
 			if (core_list[i].numa_id > last_numa) {
 				last_numa = core_list[i].numa_id;
@@ -110,16 +110,16 @@ void fill_topology_lookup_maps()
 
 static void init_topology_info()
 {
-	core_list = calloc(num_cores_power2, sizeof(struct core_info));
-	os_coreid_lookup = calloc(num_cores_power2, sizeof(int));
-	hw_coreid_lookup = calloc(num_cores_power2, sizeof(int));
+	core_list = calloc(max_logical_cores, sizeof(struct core_info));
+	os_coreid_lookup = calloc(max_logical_cores, sizeof(int));
+	hw_coreid_lookup = calloc(max_logical_cores, sizeof(int));
 }
 
 static void build_topology(uint32_t core_bits, uint32_t chip_bits)
 {
+	int max_chips = (1 << chip_bits);
 	int max_cores_per_chip = (1 << core_bits);
-	int max_cores_per_socket = (1 << chip_bits);
-	num_cores_power2 = (1 << (core_bits + chip_bits));
+	max_logical_cores = (1 << (core_bits + chip_bits));
 
 	init_topology_info();
 
@@ -128,8 +128,8 @@ static void build_topology(uint32_t core_bits, uint32_t chip_bits)
 	while (temp) {
 		if (temp->type == ASlapic) {
 			apic_id = temp->lapic.id;
-			socket_id = apic_id & ~(num_cores_power2 - 1);
-			chip_id = (apic_id >> core_bits) & (max_cores_per_socket - 1);
+			socket_id = apic_id & ~(max_logical_cores - 1);
+			chip_id = (apic_id >> core_bits) & (max_chips - 1);
 			core_id = apic_id & (max_cores_per_chip - 1);
 
 			/* TODO: Build numa topology properly */
