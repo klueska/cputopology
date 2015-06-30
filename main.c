@@ -67,8 +67,6 @@ int main(int argc, char **argv)
 {
 	acpiinit();	
 	topology_init();
-	archinit();
-	fill_topology_lookup_maps();
 	nodes_init();
 	test_id_funcs();
 	test_structure();

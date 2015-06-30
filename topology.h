@@ -42,6 +42,5 @@ int cpu_id();
 int core_id();
 
 void topology_init();
-void fill_topology_lookup_maps();
 void print_cpu_topology();
 #endif /* !TOPOLOGY_H_ */

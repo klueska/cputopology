@@ -57,25 +57,3 @@ uint32_t get_apic_id()
 	return edx;
 }
 
-static void *core_proxy(void *arg)
-{
-	int coreid = (int)(long)arg;
-	pin_to_core(coreid);
-
-	uint32_t apic_id = get_apic_id();
-	cpu_topology_info.core_list[apic_id].online = true;
-}
-
-void archinit()
-{
-	int ncpus = get_nprocs();
-	pthread_t pthread[ncpus];
-
-	for (int i=0; i<ncpus; i++) {
-		pthread_create(&pthread[i], NULL, core_proxy, (void*)(long)i);
-	}
-	for (int i=0; i<ncpus; i++) {
-		pthread_join(pthread[i], NULL);
-	}
-}
-

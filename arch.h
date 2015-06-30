@@ -9,7 +9,6 @@
 
 #include <stdint.h>
 
-void archinit();
 void pin_to_core(int coreid);
 uint32_t get_apic_id();
 

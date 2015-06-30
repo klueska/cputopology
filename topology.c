@@ -76,7 +76,7 @@ static void adjust_ids(int id_offset)
 	}
 }
 
-void fill_topology_lookup_maps()
+static void fill_topology_lookup_maps()
 {
 	int last_numa = -1, last_socket = -1, last_cpu = -1, last_core = -1;
 	for (int i = 0; i < max_logical_cores; i++) {
@@ -137,7 +137,7 @@ static void build_topology(uint32_t core_bits, uint32_t cpu_bits)
 			core_list[apic_id].socket_id = socket_id;
 			core_list[apic_id].cpu_id = cpu_id;
 			core_list[apic_id].core_id = core_id;
-			core_list[apic_id].online = false;
+			core_list[apic_id].online = true;
 		}
 		temp = temp->next;
 	}
@@ -156,7 +156,7 @@ static void build_flat_topology()
 			core_list[apic_id].socket_id = 0;
 			core_list[apic_id].cpu_id = 0;
 			core_list[apic_id].core_id = 0;
-			core_list[apic_id].online = false;
+			core_list[apic_id].online = true;
 		}
 		temp = temp->next;
 	}
@@ -187,6 +187,7 @@ void topology_init()
 		build_topology(core_bits, cpu_bits);
 	else 
 		build_flat_topology();
+	fill_topology_lookup_maps();
 }
 
 int numa_domain()
