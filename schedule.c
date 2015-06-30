@@ -40,13 +40,13 @@
 
 #define num_cores           (cpu_topology_info.num_cores)
 #define num_cores_power2    (cpu_topology_info.num_cores_power2)
-#define num_chips           (cpu_topology_info.num_chips)
+#define num_cpus            (cpu_topology_info.num_cpus)
 #define num_sockets         (cpu_topology_info.num_sockets)
 #define num_numa            (cpu_topology_info.num_numa)
 #define cores_per_numa      (cpu_topology_info.cores_per_numa)
 #define cores_per_socket    (cpu_topology_info.cores_per_socket)
-#define cores_per_chip      (cpu_topology_info.cores_per_chip)
-#define chips_per_socket    (cpu_topology_info.chips_per_socket)
+#define cores_per_cpu       (cpu_topology_info.cores_per_cpu)
+#define cpus_per_socket     (cpu_topology_info.cpus_per_socket)
 #define sockets_per_numa    (cpu_topology_info.sockets_per_numa)
 
 /* An array containing the number of nodes at each level. */
@@ -123,13 +123,13 @@ static void init_core_distances()
 void nodes_init()
 {
 	/* Allocate a flat array of nodes. */
-	total_nodes = num_cores + num_chips + num_sockets + num_numa;
+	total_nodes = num_cores + num_cpus + num_sockets + num_numa;
 	node_list = malloc(total_nodes * sizeof(struct node));
 
 	/* Initialize the nodes at each level in our hierarchy. */
 	init_nodes(CORE, num_cores, 0);
-	init_nodes(CHIP, num_chips, cores_per_chip);
-	init_nodes(SOCKET, num_sockets, chips_per_socket);
+	init_nodes(CPU, num_cpus, cores_per_cpu);
+	init_nodes(SOCKET, num_sockets, cpus_per_socket);
 	init_nodes(NUMA, num_numa, sockets_per_numa);
 
 	/* Initialize our 2 dimensions array of core_distance */
@@ -166,7 +166,7 @@ static struct node *find_best_core(struct proc *p)
 	struct node *bestn = NULL;
 	struct node *np = NULL;
 	int sibling_id = 0;
-	for (int k = CHIP; k <= NUM_NODE_TYPES ; k++) {
+	for (int k = CPU; k <= NUM_NODE_TYPES ; k++) {
 		STAILQ_FOREACH(np, &core_owned, link) {
 			int nb_cores = max_refcount[k][0];
 			int type_id = np->id / nb_cores;

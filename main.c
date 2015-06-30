@@ -46,7 +46,7 @@ static void *core_proxy(void *arg)
 
 	pthread_mutex_lock(&mutex);
 	/* printf("numa_domain: %3d, socketid: %3d, chipid: %3d, coreid: %3d\n", */
-	/*        numa_domain(), socketid(), chipid(), coreid()); */
+	/*        numa_domain(), socket_id(), chip_id(), core_id()); */
 	pthread_mutex_unlock(&mutex);
 }
 
