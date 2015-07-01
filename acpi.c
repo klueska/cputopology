@@ -35,10 +35,12 @@
 #include <pthread.h>
 #include <stdint.h>
 #include <malloc.h>
+#include <numa.h>
 #include "acpi.h"
 #include "arch.h"
 
 struct Madt *apics = NULL;
+struct Srat *srat = NULL;
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static void *core_proxy(void *arg)
@@ -46,13 +48,20 @@ static void *core_proxy(void *arg)
 	int coreid = (int)(long)arg;
 	pin_to_core(coreid);
 
-	struct Apicst *new_st = malloc(sizeof(struct Apicst));
+	struct Apicst *new_st = calloc(1, sizeof(struct Apicst));
 	new_st->type = ASlapic;
 	new_st->lapic.id = get_apic_id();
+
+	struct Srat *new_srat = calloc(1, sizeof(struct Srat));
+	new_srat->type = SRlapic;
+	new_srat->lapic.dom = numa_node_of_cpu(coreid);
+	new_srat->lapic.apic = new_st->lapic.id;
 
 	pthread_mutex_lock(&mutex);
 	new_st->next = apics->st; 
 	apics->st = new_st; 
+	new_srat->next = srat;
+	srat = new_srat;
 	pthread_mutex_unlock(&mutex);
 }
 
@@ -61,7 +70,7 @@ void acpiinit()
 	int ncpus = get_nprocs();
 	pthread_t pthread[ncpus];
 
-	apics = malloc(sizeof(struct Madt));
+	apics = calloc(1, sizeof(struct Madt));
 	for (int i=0; i<ncpus; i++) {
 		pthread_create(&pthread[i], NULL, core_proxy, (void*)(long)i);
 	}

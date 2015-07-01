@@ -20,6 +20,19 @@ struct Madt {
 #define ASlapic 0
 extern struct Madt *apics;
 
+struct Srat {
+	int type;
+	struct Srat *next;
+	union {
+		struct {
+			int dom;
+			int apic;
+		} lapic;
+	};
+};
+#define SRlapic 0
+extern struct Srat *srat;
+
 void acpiinit();
 
 #endif /* !ACPI_H */

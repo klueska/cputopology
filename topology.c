@@ -58,21 +58,41 @@ int *os_coreid_lookup;
 #define max_apic_id         (cpu_topology_info.max_apic_id)
 #define core_list           (cpu_topology_info.core_list)
 
-static void adjust_ids(int id_offset)
+static void set_socket_ids(int raw_socket_ids[])
 {
-	int new_id = 0, old_id = -1;
-	for (int i = 0; i < num_cores; i++) {
-		for (int j = 0; j < num_cores; j++) {
-			int *id_field = ((void*)&core_list[j] + id_offset);
-			if (*id_field >= new_id) {
-				if (old_id == -1)
-					old_id = *id_field;
-				if (old_id == *id_field)
-					*id_field = new_id;
+	int socket_id, raw_socket_id;
+	for (int numa_id = 0; numa_id < num_numa; numa_id++) {
+		socket_id = 0;
+		for (int i = 0; i < num_cores; i++) {
+			if (core_list[i].numa_id == numa_id) {
+				if (core_list[i].socket_id == -1) {
+					core_list[i].socket_id = socket_id;
+					raw_socket_id = raw_socket_ids[i];
+					for (int j = i; j < num_cores; j++) {
+						if (core_list[j].numa_id == numa_id) {
+							if (raw_socket_ids[j] == raw_socket_id) {
+								core_list[j].socket_id = socket_id;
+							}
+						}
+					}
+				}
+				socket_id++;
 			}
 		}
-		old_id = -1;
-		new_id++;
+	}
+}
+
+static int find_numa_domain(int apic_id)
+{
+	/* Loop through our Srat table to find a matching numa domain for the
+	 * given apid_id. */
+	struct Srat *temp = srat;
+	while (temp) {
+		if (temp->type == SRlapic) {
+			if (temp->lapic.apic == apic_id)
+				return temp->lapic.dom;
+		}
+		temp = temp->next;
 	}
 }
 
@@ -86,6 +106,21 @@ static void set_num_cores()
 			num_cores++;
 		temp = temp->next;
 	}
+}
+
+static void set_num_numa()
+{
+	/* Figure out the maximum number of numa domains we actually have and set
+	 * it in our cpu_topology_info struct. */
+	num_numa = -1;
+	struct Srat *temp = srat;
+	while (temp) {
+		if (temp->type == SRlapic)
+			if (temp->lapic.dom > num_numa)
+				num_numa++;
+		temp = temp->next;
+	}
+	num_numa++;
 }
 
 static void set_max_apic_id() {
@@ -143,16 +178,15 @@ static void init_core_list(uint32_t core_bits, uint32_t cpu_bits)
 	int max_cpus = (1 << cpu_bits);
 	int max_cores_per_cpu = (1 << core_bits);
 	int max_logical_cores = (1 << (core_bits + cpu_bits));
-	uint32_t core_id = 0, cpu_id = 0, socket_id = 0;
+	int raw_socket_ids[num_cores], cpu_id = 0, core_id = 0;
 	for (int apic_id = 0; apic_id <= max_apic_id; apic_id++) {
 		if (os_coreid_lookup[apic_id] != -1) {
-			socket_id = apic_id & ~(max_logical_cores - 1);
+			raw_socket_ids[os_coreid] = apic_id & ~(max_logical_cores - 1);
 			cpu_id = (apic_id >> core_bits) & (max_cpus - 1);
 			core_id = apic_id & (max_cores_per_cpu - 1);
 
-			/* TODO: Build numa topology properly */
-			core_list[os_coreid].numa_id = 0;
-			core_list[os_coreid].socket_id = socket_id;
+			core_list[os_coreid].numa_id = find_numa_domain(apic_id);
+			core_list[os_coreid].socket_id = -1;
 			core_list[os_coreid].cpu_id = cpu_id;
 			core_list[os_coreid].core_id = core_id;
 			core_list[os_coreid].apic_id = apic_id;
@@ -160,16 +194,14 @@ static void init_core_list(uint32_t core_bits, uint32_t cpu_bits)
 		}
 	}
 
-	/* The various id's set in the previous step are all unique in terms of
-	 * representing the topology (i.e. all cores under the same socket have
-	 * the same socket_id set), but these id's are not necessarily contiguous,
-	 * and are only relative to the level of the hierarchy they exist at (e.g.
-	 * cpu_id 4 may exist under *both* socke_id 0 and socket_id 1). In this
-	 * step, we Squash these id's down so they are contiguous. In a following
-	 * step, we will make them all absolute instead of relative. */
-	adjust_ids(offsetof(struct core_info, socket_id));
-	adjust_ids(offsetof(struct core_info, cpu_id));
-	adjust_ids(offsetof(struct core_info, core_id));
+	/* We haven't yet set the socket id of each core yet.  So far, all we've
+	 * extracted is a "raw" socket id from the top bits in our apic id, but we
+	 * need to condense these down into something workable for a socket id, per
+	 * numa domain. OSDev has an algorithm for doing so
+	 * (http://wiki.osdev.org/Detecting_CPU_Topology_%2880x86%29). We adapt it
+	 * for our setup. In a following step we will make all of these ids
+	 * absolute instead of relative. */
+	set_socket_ids(raw_socket_ids);
 }
 
 static void init_core_list_flat()
@@ -184,8 +216,7 @@ static void init_core_list_flat()
 	int os_coreid = 0;
 	for (int apic_id = 0; apic_id <= max_apic_id; apic_id++) {
 		if (os_coreid_lookup[apic_id] != -1) {
-			/* TODO: Build numa topology properly */
-			core_list[os_coreid].numa_id = 0;
+			core_list[os_coreid].numa_id = find_numa_domain(apic_id);
 			core_list[os_coreid].socket_id = 0;
 			core_list[os_coreid].cpu_id = 0;
 			core_list[os_coreid].core_id = os_coreid;
@@ -202,10 +233,6 @@ static void set_remaining_topology_info()
 	 * in our cpu_topology_info struct. */
 	int last_numa = -1, last_socket = -1, last_cpu = -1, last_core = -1;
 	for (int i = 0; i < num_cores; i++) {
-		if (core_list[i].numa_id > last_numa) {
-			last_numa = core_list[i].numa_id;
-			num_numa++;
-		}
 		if (core_list[i].socket_id > last_socket) {
 			last_socket = core_list[i].socket_id;
 			sockets_per_numa++;
@@ -239,6 +266,7 @@ static void update_core_list_with_absolute_ids()
 static void build_topology(uint32_t core_bits, uint32_t cpu_bits)
 {
 	set_num_cores();
+	set_num_numa();
 	set_max_apic_id();
 	init_os_coreid_lookup();
 	init_core_list(core_bits, cpu_bits);
