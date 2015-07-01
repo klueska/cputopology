@@ -247,7 +247,8 @@ static void init_core_list_flat()
 	int os_coreid = 0;
 	for (int apic_id = 0; apic_id <= max_apic_id; apic_id++) {
 		if (os_coreid_lookup[apic_id] != -1) {
-			core_list[os_coreid].numa_id = find_numa_domain(apic_id);
+			core_list[os_coreid].numa_id = 0;
+			core_list[os_coreid].raw_socket_id = 0;
 			core_list[os_coreid].socket_id = 0;
 			core_list[os_coreid].cpu_id = 0;
 			core_list[os_coreid].core_id = os_coreid;
@@ -308,6 +309,7 @@ static void build_topology(uint32_t core_bits, uint32_t cpu_bits)
 static void build_flat_topology()
 {
 	set_num_cores();
+	num_numa = 1;
 	set_max_apic_id();
 	init_os_coreid_lookup();
 	init_core_list_flat();
