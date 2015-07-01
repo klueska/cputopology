@@ -58,6 +58,24 @@ int *os_coreid_lookup;
 #define max_apic_id         (cpu_topology_info.max_apic_id)
 #define core_list           (cpu_topology_info.core_list)
 
+static void adjust_ids(int id_offset)
+{
+	int new_id = 0, old_id = -1;
+	for (int i = 0; i < num_cores; i++) {
+		for (int j = 0; j < num_cores; j++) {
+			int *id_field = ((void*)&core_list[j] + id_offset);
+			if (*id_field >= new_id) {
+				if (old_id == -1)
+					old_id = *id_field;
+				if (old_id == *id_field)
+					*id_field = new_id;
+			}
+		}
+		old_id=-1;
+		new_id++;
+	}
+}
+
 static void set_socket_ids(int raw_socket_ids[])
 {
 	int socket_id, raw_socket_id;
@@ -194,14 +212,26 @@ static void init_core_list(uint32_t core_bits, uint32_t cpu_bits)
 		}
 	}
 
-	/* We haven't yet set the socket id of each core yet.  So far, all we've
+	/* We haven't yet set the socket id of each core yet. So far, all we've
 	 * extracted is a "raw" socket id from the top bits in our apic id, but we
 	 * need to condense these down into something workable for a socket id, per
 	 * numa domain. OSDev has an algorithm for doing so
 	 * (http://wiki.osdev.org/Detecting_CPU_Topology_%2880x86%29). We adapt it
-	 * for our setup. In a following step we will make all of these ids
-	 * absolute instead of relative. */
+	 * for our setup. */
 	set_socket_ids(raw_socket_ids);
+
+	/* In general, the various id's set in the previous step are all unique in
+	 * terms of representing the topology (i.e. all cores under the same socket
+	 * have the same socket_id set), but these id's are not necessarily
+	 * contiguous, and are only relative to the level of the hierarchy they
+	 * exist at (e.g.  cpu_id 4 may exist under *both* socket_id 0 and
+	 * socket_id 1). In this step, we squash these id's down so they are
+	 * contiguous. In a following step, we will make them all absolute instead
+	 * of relative. */
+	adjust_ids(offsetof(struct core_info, numa_id));
+	adjust_ids(offsetof(struct core_info, socket_id));
+	adjust_ids(offsetof(struct core_info, cpu_id));
+	adjust_ids(offsetof(struct core_info, core_id));
 }
 
 static void init_core_list_flat()
