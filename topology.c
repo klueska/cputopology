@@ -76,7 +76,7 @@ static void adjust_ids(int id_offset)
 	}
 }
 
-static void set_socket_ids(int raw_socket_ids[])
+static void set_socket_ids()
 {
 	int socket_id, raw_socket_id;
 	for (int numa_id = 0; numa_id < num_numa; numa_id++) {
@@ -85,10 +85,10 @@ static void set_socket_ids(int raw_socket_ids[])
 			if (core_list[i].numa_id == numa_id) {
 				if (core_list[i].socket_id == -1) {
 					core_list[i].socket_id = socket_id;
-					raw_socket_id = raw_socket_ids[i];
+					raw_socket_id = core_list[i].raw_socket_id;
 					for (int j = i; j < num_cores; j++) {
 						if (core_list[j].numa_id == numa_id) {
-							if (raw_socket_ids[j] == raw_socket_id) {
+							if (core_list[j].raw_socket_id == raw_socket_id) {
 								core_list[j].socket_id = socket_id;
 							}
 						}
@@ -196,14 +196,15 @@ static void init_core_list(uint32_t core_bits, uint32_t cpu_bits)
 	int max_cpus = (1 << cpu_bits);
 	int max_cores_per_cpu = (1 << core_bits);
 	int max_logical_cores = (1 << (core_bits + cpu_bits));
-	int raw_socket_ids[num_cores], cpu_id = 0, core_id = 0;
+	int raw_socket_id = 0, cpu_id = 0, core_id = 0;
 	for (int apic_id = 0; apic_id <= max_apic_id; apic_id++) {
 		if (os_coreid_lookup[apic_id] != -1) {
-			raw_socket_ids[os_coreid] = apic_id & ~(max_logical_cores - 1);
+			raw_socket_id = apic_id & ~(max_logical_cores - 1);
 			cpu_id = (apic_id >> core_bits) & (max_cpus - 1);
 			core_id = apic_id & (max_cores_per_cpu - 1);
 
 			core_list[os_coreid].numa_id = find_numa_domain(apic_id);
+			core_list[os_coreid].raw_socket_id = raw_socket_id;
 			core_list[os_coreid].socket_id = -1;
 			core_list[os_coreid].cpu_id = cpu_id;
 			core_list[os_coreid].core_id = core_id;
@@ -211,14 +212,6 @@ static void init_core_list(uint32_t core_bits, uint32_t cpu_bits)
 			os_coreid++;
 		}
 	}
-
-	/* We haven't yet set the socket id of each core yet. So far, all we've
-	 * extracted is a "raw" socket id from the top bits in our apic id, but we
-	 * need to condense these down into something workable for a socket id, per
-	 * numa domain. OSDev has an algorithm for doing so
-	 * (http://wiki.osdev.org/Detecting_CPU_Topology_%2880x86%29). We adapt it
-	 * for our setup. */
-	set_socket_ids(raw_socket_ids);
 
 	/* In general, the various id's set in the previous step are all unique in
 	 * terms of representing the topology (i.e. all cores under the same socket
@@ -229,9 +222,17 @@ static void init_core_list(uint32_t core_bits, uint32_t cpu_bits)
 	 * contiguous. In a following step, we will make them all absolute instead
 	 * of relative. */
 	adjust_ids(offsetof(struct core_info, numa_id));
-	adjust_ids(offsetof(struct core_info, socket_id));
+	adjust_ids(offsetof(struct core_info, raw_socket_id));
 	adjust_ids(offsetof(struct core_info, cpu_id));
 	adjust_ids(offsetof(struct core_info, core_id));
+
+	/* We haven't yet set the socket id of each core yet. So far, all we've
+	 * extracted is a "raw" socket id from the top bits in our apic id, but we
+	 * need to condense these down into something workable for a socket id, per
+	 * numa domain. OSDev has an algorithm for doing so
+	 * (http://wiki.osdev.org/Detecting_CPU_Topology_%2880x86%29). We adapt it
+	 * for our setup. */
+	set_socket_ids();
 }
 
 static void init_core_list_flat()
@@ -369,11 +370,12 @@ void print_cpu_topology()
 	printf("num_numa: %d, num_sockets: %d, num_cpus: %d, num_cores: %d\n",
 	       num_numa, num_sockets, num_cpus, num_cores);
 	for (int i = 0; i < num_cores; i++) {
-		printf("OScoreid: %3d, HWcoreid: %3d, Numa Domain: %3d, "
-		       "Socket: %3d, Cpu: %3d, Core: %3d\n",
+		printf("OScoreid: %3d, HWcoreid: %3d, RawSocketid: %3d, "
+		       "Numa Domain: %3d, Socket: %3d, Cpu: %3d, Core: %3d\n",
 		       i,
 		       core_list[i].apic_id,
 		       core_list[i].numa_id,
+		       core_list[i].raw_socket_id,
 		       core_list[i].socket_id,
 		       core_list[i].cpu_id,
 		       core_list[i].core_id);

@@ -15,6 +15,7 @@ struct core_info {
 	int socket_id;
 	int cpu_id;
 	int core_id;
+	int raw_socket_id;
 	int apic_id;
 };
 
