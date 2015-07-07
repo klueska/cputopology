@@ -13,7 +13,6 @@
 enum node_type { CORE, CPU, SOCKET, NUMA };
 static char node_label[4][7] = { "CORE", "CPU", "SOCKET", "NUMA" };
 #define NUM_NODE_TYPES sizeof(enum node_type)
-#define child_node_type(t) ((t) - 1)
 
 struct node {
 	int id;
