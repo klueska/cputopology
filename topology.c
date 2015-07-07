@@ -54,6 +54,7 @@ int *os_coreid_lookup;
 #define cores_per_socket    (cpu_topology_info.cores_per_socket)
 #define cores_per_cpu       (cpu_topology_info.cores_per_cpu)
 #define cpus_per_socket     (cpu_topology_info.cpus_per_socket)
+#define cpus_per_numa       (cpu_topology_info.cpus_per_numa)
 #define sockets_per_numa    (cpu_topology_info.sockets_per_numa)
 #define max_apic_id         (cpu_topology_info.max_apic_id)
 #define core_list           (cpu_topology_info.core_list)
@@ -280,6 +281,7 @@ static void set_remaining_topology_info()
 	}
 	cores_per_socket = cpus_per_socket * cores_per_cpu;
 	cores_per_numa = sockets_per_numa * cores_per_socket;
+	cpus_per_numa = sockets_per_numa * cpus_per_socket;
 	num_sockets = sockets_per_numa * num_numa;
 	num_cpus = cpus_per_socket * num_sockets;
 }
