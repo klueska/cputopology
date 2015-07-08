@@ -278,8 +278,6 @@ static struct node *alloc_core(struct node *n, struct proc *p)
 		n->provisioned_to = NULL;
 		if (num_children(n->type) == 0)
 			incref_node_recursive(n);
-		for (int i = 0; i < num_children(n->type); i++)
-			alloc_core(&n->children[i], p);
 		return n;
 	}
 }
