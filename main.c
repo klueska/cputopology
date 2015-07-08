@@ -68,7 +68,7 @@ int main(int argc, char **argv)
 	acpiinit();	
 	topology_init();
 	nodes_init();
-	print_cpu_topology();
+	//print_cpu_topology();
 	test_id_funcs();
 	test_structure();
 	return 0;

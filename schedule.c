@@ -335,30 +335,29 @@ static struct core_list node2list(struct node *n)
 	return core_available;
 }
  
-/* Enable to handle multi "any" allocations given the number and the type of 
- * nodes we want. Concat the list of cores and returns it. 
- * If we can't get one of the requested core, we return an empty core list. */
-static void concat_list(int amt, struct proc *p, enum node_type type) {
-	if (amt > num_nodes[type])
-		return;
-
-	for (int i = 0; i < amt; i++) {
-		if (STAILQ_FIRST(&(p->core_owned)) == NULL) {
-			struct core_list temp = node2list(alloc_first_core(p));
-			p->core_owned = temp;
-		} else {
-			struct core_list temp = node2list(alloc_best_core(p));
-			if (STAILQ_FIRST(&temp) == NULL)
-				return;
-			else
-				STAILQ_CONCAT(&(p->core_owned), &temp);
-		}
+/* Concat the core in parameter to the list of cores p owns. */
+static void concat_list(struct node *n, struct proc *p) {
+	struct core_list temp = node2list(n);
+	if (STAILQ_FIRST(&(p->core_owned)) == NULL) {
+		p->core_owned = temp;
+	} else {
+		if (STAILQ_FIRST(&temp) == NULL)
+			return;
+		else
+			STAILQ_CONCAT(&(p->core_owned), &temp);
 	}
 }
 
 void alloc_core_any(int amt, struct proc *p)
 {
-	concat_list(amt, p, CORE);
+	for (int i = 0; i < amt; i++) {
+		struct node* n = NULL;
+		if (STAILQ_FIRST(&(p->core_owned)) == NULL)
+			n = alloc_first_core(p);
+		else
+			n = alloc_best_core(p);
+		concat_list(n, p);
+	}
 }
 
 void alloc_core_specific(int core_id, struct proc *p)
@@ -366,7 +365,7 @@ void alloc_core_specific(int core_id, struct proc *p)
 	struct node *n = &node_lookup[CORE][core_id];
 	if (n->provisioned_to == p || (n->provisioned_to == NULL &&
 								   n->allocated_to == NULL))
-		alloc_core(n, p);
+		concat_list(alloc_core(n, p), p);
 }
 
 void provision_core(int core_id, struct proc *p)
@@ -426,7 +425,7 @@ void test_structure()
 	provision_core(3, p2);
 	alloc_core_specific(3,p2);
 	alloc_core_any(1,p1);
-	free_core(0,p2);
+	//free_core(0,p2);
 	STAILQ_FOREACH(np, &(p1->core_owned), link) {
 		printf("I am core %d, refcount: %d\n", np->id,np->refcount[0]);
 	}
