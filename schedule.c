@@ -86,6 +86,8 @@ static void init_nodes(int type, int num, int nchildren)
 		n->type = type;
 		memset(n->refcount, 0, sizeof(n->refcount));
 		n->parent = NULL;
+		n->allocated_to = NULL;
+		n->provisioned_to = NULL;
 		n->children = &node_lookup[child_node_type(type)][i * nchildren];
 		for (int j = 0; j < nchildren; j++)
 			n->children[j].parent = n;
@@ -268,17 +270,25 @@ static void decref_node_recursive(struct node *n)
 	}
 }
 
-/* Allocate a specific core. */
+/* Allocate a specific core if it is available. In this case, we need to check
+ * if the core is provisioned by p but allocated to an other proc, then we have
+ * to allocate a new core to this proc.*/
 static struct node *alloc_core(struct node *n, struct proc *p)
 {
-	if (n == NULL || n->refcount[n->type] ||  n->allocated_to == p) {
+	struct proc *n_owner = n->allocated_to;
+	if (n == NULL || n_owner == p) {
 		return NULL;
 	} else {
-		n->allocated_to = p;
-		n->provisioned_to = NULL;
-		if (num_children(n->type) == 0)
-			incref_node_recursive(n);
-		return n;
+	if (num_children(n->type) == 0)
+		incref_node_recursive(n);
+	if (n->provisioned_to = p) {
+		if (n_owner != NULL) {
+			STAILQ_REMOVE(&(n_owner->core_owned), n, node, link);
+			alloc_core_any(1,n_owner);
+		}
+	}
+	n->allocated_to = p;
+	return n;
 	}
 }
 
@@ -286,7 +296,7 @@ static struct node *alloc_core(struct node *n, struct proc *p)
 static int free_core(int core_id, struct proc *p)
 {
 	struct node *n = &node_lookup[CORE][core_id];
-	if (n == NULL || n->type != CORE || n->allocated_to != p) {
+	if (n == NULL || n->allocated_to != p || core_id > num_cores ) {
 		return -1;
 	} else {
 		n->allocated_to = NULL;
@@ -369,8 +379,7 @@ void alloc_core_specific(int core_id, struct proc *p)
 void provision_core(int core_id, struct proc *p)
 {
 	struct node *n = &node_lookup[CORE][core_id];
-	if (n->provisioned_to == NULL)
-		n->provisioned_to = p;
+	n->provisioned_to = p;
 }
 
 void deprovision_core(int core_id, struct proc *p)
@@ -422,9 +431,10 @@ void test_structure()
 	alloc_core_any(3,p1);
 	provision_core(3, p2);
 	alloc_core_specific(3,p2);
-	alloc_core_any(1,p1);
+	provision_core(3, p1);
+	alloc_core_specific(3,p1);
 	//free_core(0,p2);
-	STAILQ_FOREACH(np, &(p1->core_owned), link) {
+	STAILQ_FOREACH(np, &(p2->core_owned), link) {
 		printf("I am core %d, refcount: %d\n", np->id,np->refcount[0]);
 	}
 	/* print_all_nodes(); */
