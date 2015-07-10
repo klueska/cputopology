@@ -162,6 +162,26 @@ static int calc_core_distance(struct node *n, struct core_list cl)
 	return d;
 }
 
+static struct node *find_best_core_provision(struct proc *p)
+{
+	int bestd = 0;
+	struct core_list core_prov = p->core_provisioned;
+	struct node *bestn = NULL;
+	struct node *np = NULL;
+	if (STAILQ_FIRST(&(core_prov)) != NULL) {
+		STAILQ_FOREACH(np, &core_prov, link) {
+			if (np->refcount[CORE] == 0) {
+				int sibd = calc_core_distance(np, core_prov);
+				if (bestd == 0 || sibd < bestd) {
+					bestd = sibd;
+					bestn = np;
+				}
+			}
+		}
+	}
+	return bestn;
+}
+
 /* Consider first core siblings of the cores the proc already own. Calculate for
  * every possible node its core_distance (sum of distance from this core to the
  * one the proc owns. Allocate the core that has the lowest core_distance. */
