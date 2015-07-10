@@ -345,17 +345,17 @@ static struct core_list node2list(struct node *n)
 	}
 	return core_available;
 }
- 
-/* Concat the core in parameter to the list of cores p owns. */
-static void concat_list(struct node *n, struct proc *p) {
+
+/* Concat the core in parameter to the list of cores also in parameter. */
+static void concat_list(struct node *n, struct core_list *l) {
 	struct core_list temp = node2list(n);
-	if (STAILQ_FIRST(&(p->core_owned)) == NULL) {
-		p->core_owned = temp;
+	if (STAILQ_FIRST(l) == NULL) {
+		*l = temp;
 	} else {
 		if (STAILQ_FIRST(&temp) == NULL)
 			return;
 		else
-			STAILQ_CONCAT(&(p->core_owned), &temp);
+			STAILQ_CONCAT(l, &temp);
 	}
 }
 
@@ -367,7 +367,7 @@ void alloc_core_any(int amt, struct proc *p)
 			n = alloc_first_core(p);
 		else
 			n = alloc_best_core(p);
-		concat_list(n, p);
+		concat_list(n, &(p->core_owned));
 	}
 }
 
