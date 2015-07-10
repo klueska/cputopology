@@ -2,7 +2,7 @@
  * Copyright (c) 2015 The Regents of the University of California
  * Valmon Leymarie <leymariv@berkeley.edu>
  * Kevin Klues <klueska@cs.berkeley.edu>
- * 
+ *
  * The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -36,7 +36,7 @@
 #include <string.h>
 #include <sys/queue.h>
 #include "schedule.h"
-#include "topology.h" 
+#include "topology.h"
 
 #define num_cores           (cpu_topology_info.num_cores)
 #define num_cores_power2    (cpu_topology_info.num_cores_power2)
@@ -204,9 +204,20 @@ static struct node *find_best_core(struct proc *p)
 				struct node *core_sibling =	&node_lookup[CORE][sibling_id];
 				if (core_sibling->refcount[CORE] == 0) {
 					int sibd = calc_core_distance(core_sibling, core_owned);
-					if (bestd == 0 || sibd < bestd) {
-						bestd = sibd;
-						bestn = core_sibling;
+					if (bestd == 0 || sibd <= bestd) {
+/* If the core we have found has best core is provisioned by an other proc, we
+ * try to find an equivalent core (in terms of distance) and allocate this core
+ * instead. */
+						if (sibd == bestd ) {
+							if (bestn->provisioned_to != NULL &&
+								core_sibling->provisioned_to == NULL) {
+								bestd = sibd;
+								bestn = core_sibling;
+							}
+						} else {
+							bestd = sibd;
+							bestn = core_sibling;
+						}
 					}
 				}
 			}
@@ -217,7 +228,7 @@ static struct node *find_best_core(struct proc *p)
 	return NULL;
 }
 
-/* Returns the best first node to allocate for a proc whic has no core. 
+/* Returns the best first node to allocate for a proc whic has no core.
  * Return the node that is the farthest from the others. */
 static struct node *find_first_core()
 {
@@ -347,7 +358,7 @@ static struct node *alloc_first_core(struct proc *p)
  * node allocated is a socket of 8 cores, this function will return a list of
  * the 8 cores composing the socket. If we can't get one of the core of the
  * node, we return an empty core list. */
-static struct core_list node2list(struct node *n) 
+static struct core_list node2list(struct node *n)
 {
 	struct core_list core_available = STAILQ_HEAD_INITIALIZER(core_available);
 	if (n != NULL) {
@@ -392,7 +403,7 @@ void alloc_core_any(int amt, struct proc *p)
 }
 
 void alloc_core_specific(int core_id, struct proc *p)
-{  
+{
 	struct node *n = &node_lookup[CORE][core_id];
 	if (n->provisioned_to == p || (n->provisioned_to == NULL &&
 								   n->allocated_to == NULL))
@@ -458,9 +469,10 @@ void test_structure()
 	p2->core_provisioned = list;
 	alloc_core_any(3,p1);
 	provision_core(3, p2);
-	alloc_core_specific(3,p2);
-	provision_core(3, p1);
-	alloc_core_specific(3,p1);
+	//alloc_core_specific(3,p2);
+	provision_core(4, p1);
+	alloc_core_specific(4,p1);
+	alloc_core_any(1,p1);
 	//free_core(0,p2);
 	STAILQ_FOREACH(np, &(p1->core_owned), link) {
 		printf("I am core %d, refcount: %d\n", np->id,np->refcount[0]);
