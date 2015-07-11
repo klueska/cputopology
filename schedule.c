@@ -305,8 +305,10 @@ static void decref_node_recursive(struct node *n)
 }
 
 /* Allocate a specific core if it is available. In this case, we need to check
- * if the core is provisioned by p but allocated to an other proc, then we have
- * to allocate a new core to this proc.*/
+ * if the core n is provisioned by p but allocated to an other proc. In this
+ * case, we have to allocate a new core to this other proc.
+ * TODO : We also have to check if the core n is provisioned by an other proc.
+ * In this case, we should try to reprovision an other core to this proc. */
 static struct node *alloc_core(struct node *n, struct proc *p)
 {
 	struct proc *n_owner = n->allocated_to;
