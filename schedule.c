@@ -275,7 +275,7 @@ static struct node *find_first_core()
  * current level, we simply check if the refcount is 0, if it is not, we
  * increment it to one. Then, for each other lower level of the array, we sum
  * the refcount of the children. */
-static void incref_node_recursive(struct node *n)
+static void incref_nodes(struct node *n)
 {
 	int type;
 	struct node *p;
@@ -296,7 +296,7 @@ static void incref_node_recursive(struct node *n)
 /* Recursively decref a node from its level through its ancestors.  If the
  * refcount is not 0, we have to check if the refcount of every child of the
  * current node is 0 to decrement its refcount. */
-static void decref_node_recursive(struct node *n)
+static void decref_nodes(struct node *n)
 {
 	int type;
 	struct node *p;
@@ -325,8 +325,7 @@ static struct node *alloc_core(struct node *n, struct proc *p)
 	if (n == NULL || n_owner == p) {
 		return NULL;
 	} else {
-		if (num_children(n->type) == 0)
-			incref_node_recursive(n);
+		incref_nodes(n);
 		if (n->provisioned_to = p) {
 			if (n_owner != NULL) {
 				STAILQ_REMOVE(&(n_owner->core_owned), n, node, link);
@@ -347,7 +346,7 @@ static int free_core(int core_id, struct proc *p)
 	} else {
 		n->allocated_to = NULL;
 		STAILQ_REMOVE(&(p->core_owned), n, node, link);
-		decref_node_recursive(n);
+		decref_nodes(n);
 		return 0;
 	}
 }
