@@ -365,75 +365,68 @@ static struct node *alloc_first_core(struct proc *p)
 	return alloc_core(find_first_core(), p);
 }
 
-/* This function turns a node into a list of its cores. For exemple, if the
- * node allocated is a socket of 8 cores, this function will return a list of
- * the 8 cores composing the socket. If we can't get one of the core of the
- * node, we return an empty core list. */
-static struct core_list node2list(struct node *n)
-{
-	struct core_list core_available = STAILQ_HEAD_INITIALIZER(core_available);
-	if (n != NULL) {
-		if (n->type == CORE) {
-			STAILQ_INSERT_TAIL(&core_available,
-							   &node_lookup[CORE][n->id], link);
-		} else {
-			int cores_in_node = num_descendants[n->type][CORE];
-			for (int i = 0; i < cores_in_node; i++) {
-				int index = i +	n->id*cores_in_node;
-				STAILQ_INSERT_TAIL(&core_available,
-								   &node_lookup[CORE][index], link);
-			}
-		}
-	}
-	return core_available;
-}
-
 /* Concat the core in parameter to the list of cores also in parameter. */
 static void concat_list(struct node *n, struct core_list *l) {
-	struct core_list temp = node2list(n);
-	if (STAILQ_FIRST(l) == NULL) {
-		*l = temp;
-	} else {
-		if (STAILQ_FIRST(&temp) == NULL)
-			return;
-		else
-			STAILQ_CONCAT(l, &temp);
+	if (n != NULL) {
+		struct core_list temp = STAILQ_HEAD_INITIALIZER(temp);
+		STAILQ_INSERT_HEAD(&temp, n, link);
+		if (STAILQ_FIRST(l) == NULL) {
+			*l = temp;
+		} else {
+			if (STAILQ_FIRST(&temp) == NULL)
+				return;
+			else
+				STAILQ_CONCAT(l, &temp);
+		}
 	}
 }
 
+/* Allocate an amount of cores for proc p. Those cores are elected according to
+ * the algorithm in find_best_core. */
 void alloc_core_any(int amt, struct proc *p)
 {
-	for (int i = 0; i < amt; i++) {
-		struct node* n = NULL;
-		if (STAILQ_FIRST(&(p->core_owned)) == NULL)
-			n = alloc_first_core(p);
-		else
-			n = alloc_best_core(p);
-		concat_list(n, &(p->core_owned));
+	if (amt <= num_cores) {
+		for (int i = 0; i < amt; i++) {
+			struct node* n = NULL;
+			if (STAILQ_FIRST(&(p->core_owned)) == NULL)
+				n = alloc_first_core(p);
+			else
+				n = alloc_best_core(p);
+			concat_list(n, &(p->core_owned));
+		}
 	}
 }
 
+/* Allocate a specific core to the proc p. */
 void alloc_core_specific(int core_id, struct proc *p)
 {
-	struct node *n = &node_lookup[CORE][core_id];
-	if (n->provisioned_to == p || (n->provisioned_to == NULL &&
+	if (core_id <= num_cores) {
+		struct node *n = &node_lookup[CORE][core_id];
+		if (n->provisioned_to == p || (n->provisioned_to == NULL &&
 								   n->allocated_to == NULL))
-		concat_list(alloc_core(n, p), &(p->core_owned));
+			concat_list(alloc_core(n, p), &(p->core_owned));
+	}
 }
 
+/* Provision a given core to the proc p. */
 void provision_core(int core_id, struct proc *p)
 {
-	struct node *n = &node_lookup[CORE][core_id];
-	n->provisioned_to = p;
-	concat_list(n, &(p->core_provisioned));
+	if (core_id <= num_cores) {
+		struct node *n = &node_lookup[CORE][core_id];
+		n->provisioned_to = p;
+		concat_list(n, &(p->core_provisioned));
+	}
 }
 
+/* Remove the provision made by a proc for a core. */
 void deprovision_core(int core_id, struct proc *p)
 {
-	struct node *n = &node_lookup[CORE][core_id];
-	if (n->provisioned_to != NULL){
-		n->provisioned_to = NULL;
-		STAILQ_REMOVE(&(p->core_provisioned), n, node, link);
+	if (core_id <= num_cores) {
+		struct node *n = &node_lookup[CORE][core_id];
+		if (n->provisioned_to != NULL){
+			n->provisioned_to = NULL;
+			STAILQ_REMOVE(&(p->core_provisioned), n, node, link);
+		}
 	}
 }
 
