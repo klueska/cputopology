@@ -32,11 +32,11 @@ struct proc {
 };
 
 void nodes_init();
-void alloc_core_any(int amt, struct proc *p);
-void alloc_core_specific(int core_id, struct proc *p);
-int free_core_specific(int core_id, struct proc *p);
-void provision_core(int core_id, struct proc *p);
-void deprovision_core(int core_id, struct proc *p);
+void alloc_core_any(struct proc *p, int amt);
+void alloc_core_specific(struct proc *p, int core_id);
+int free_core_specific(struct proc *p, int core_id);
+void provision_core(struct proc *p, int core_id);
+void deprovision_core(struct proc *p, int core_id);
 
 void print_node(struct node *n);
 void print_nodes(int type);
