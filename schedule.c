@@ -94,7 +94,10 @@ static void init_nodes(int type, int num, int nchildren)
 	}
 }
 
-/* Allocate a flat array of core_distances. */
+/* Allocate a flat array of array of int. It represent the distance from one
+ * core to an other. If cores are on the same CPU, their distance is 2, if they
+ * are on the same socket, their distance is 4, on the same numa their distance
+ * is 6. Otherwise their distance is 8.*/
 static void init_core_distances()
 {
 	if ((core_distance = calloc(num_cores, sizeof(int*))) != NULL) {
@@ -142,7 +145,7 @@ void nodes_init()
 	init_core_distances();
 }
 
-/* Returns the first child of type in parameter for the node n. */
+/* Returns the first core for the node n. */
 static struct node *first_core(struct node *n)
 {
 	struct node *first_child = n;
@@ -151,7 +154,7 @@ static struct node *first_core(struct node *n)
 	return first_child;
 }
 
-/* Returns the core_distance of one core from the cores owned by proc p */
+/* Returns the core_distance of one core from the list of cores in parameter */
 static int calc_core_distance(struct node *n, struct core_list cl)
 {
 	int d = 0;
@@ -182,7 +185,8 @@ static struct node *find_best_core_provision(struct proc *p)
 	return bestn;
 }
 
-/* Consider first core siblings of the cores the proc already own. Calculate for
+/* Consider first core provisioned proc by calling find_best_core_provision.
+ * Then check siblings of the cores the proc already own. Calculate for
  * every possible node its core_distance (sum of distance from this core to the
  * one the proc owns. Allocate the core that has the lowest core_distance. */
 static struct node *find_best_core(struct proc *p)
@@ -192,6 +196,7 @@ static struct node *find_best_core(struct proc *p)
 	struct node *np = NULL;
 	int sibling_id = 0;
 	struct node *bestn = find_best_core_provision(p);
+/* If we found an available provisioned core, we return it and we are done. */
 	if ( bestn != NULL) {
 		return bestn;
 	}
@@ -228,8 +233,8 @@ static struct node *find_best_core(struct proc *p)
 	return NULL;
 }
 
-/* Returns the best first node to allocate for a proc whic has no core.
- * Return the node that is the farthest from the others. */
+/* Returns the best first core to allocate for a proc which owns no core.
+ * Return the core that is the farthest from the others's proc cores. */
 static struct node *find_first_core()
 {
 	int best_refcount = 0;
@@ -480,7 +485,6 @@ void test_structure()
 		printf("I am core %d, refcount: %d\n", np->id,np->refcount[0]);
 	}
 	/* print_all_nodes(); */
-	free_core(4,p1);
 	/* printf("\nAFTER\n\n"); */
 	/* print_all_nodes(); */
 	/* struct core_list test = alloc_core_any(1); */
