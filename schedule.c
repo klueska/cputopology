@@ -165,16 +165,21 @@ static int calc_core_distance(struct node *n, struct core_list cl)
 	return d;
 }
 
+/* Return the best core among the list of provisioned cores. This function is
+ * slightly different from find_best_core in the way we just need to check the
+ * cores itself, and don't need to check other levels of the topology. If no
+ * cores are available we return NULL.*/
 static struct node *find_best_core_provision(struct proc *p)
 {
 	int bestd = 0;
 	struct core_list core_prov = p->core_provisioned;
+	struct core_list core_alloc = p->core_owned;
 	struct node *bestn = NULL;
 	struct node *np = NULL;
 	if (STAILQ_FIRST(&(core_prov)) != NULL) {
 		STAILQ_FOREACH(np, &core_prov, link) {
 			if (np->refcount[CORE] == 0) {
-				int sibd = calc_core_distance(np, core_prov);
+				int sibd = calc_core_distance(np, core_alloc);
 				if (bestd == 0 || sibd < bestd) {
 					bestd = sibd;
 					bestn = np;
