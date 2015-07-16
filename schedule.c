@@ -240,16 +240,32 @@ static struct node *find_best_core(struct proc *p)
 	return NULL;
 }
 
+/* Returns the first provision core available. If none is found, return NULL */
+static struct node *find_first_provision_core(struct proc *p)
+{
+	struct core_list core_prov = p->core_provisioned;
+	struct node *np = NULL;
+	if (STAILQ_FIRST(&(core_prov)) != NULL) {
+		STAILQ_FOREACH(np, &core_prov, link_prov) {
+			if (np->refcount[CORE] == 0) {
+				return np;
+				}
+			}
+		}
+	return NULL;
+}
+
 /* Returns the best first core to allocate for a proc which owns no core.
  * Return the core that is the farthest from the others's proc cores. */
-static struct node *find_first_core()
+static struct node *find_first_core(struct proc *p)
 {
 	int best_refcount = 0;
-	struct node *bestn = NULL;
+	struct node *bestn = find_first_provision_core(p);
 	struct node *n = NULL;
 	struct node *siblings = node_lookup[NUMA];
 	int num_siblings = 1;
-
+	if (bestn != NULL)
+		return bestn;
 	for (int i = NUMA; i >= CORE; i--) {
 		for (int j = 0; j < num_siblings; j++) {
 			n = &siblings[j];
