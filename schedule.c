@@ -159,7 +159,7 @@ static int calc_core_distance(struct core_list cl, struct node *n)
 {
 	int d = 0;
 	struct node *temp = NULL;
-	STAILQ_FOREACH(temp, &cl, link) {
+	STAILQ_FOREACH(temp, &cl, link_alloc) {
 		d += core_distance[n->id][temp->id];
 	}
 	return d;
@@ -177,7 +177,7 @@ static struct node *find_best_core_provision(struct proc *p)
 	struct node *bestn = NULL;
 	struct node *np = NULL;
 	if (STAILQ_FIRST(&(core_prov)) != NULL) {
-		STAILQ_FOREACH(np, &core_prov, link) {
+		STAILQ_FOREACH(np, &core_prov, link_prov) {
 			if (np->refcount[CORE] == 0) {
 				int sibd = calc_core_distance(core_alloc, np);
 				if (bestd == 0 || sibd < bestd) {
@@ -207,7 +207,7 @@ static struct node *find_best_core(struct proc *p)
 		return bestn;
 	}
 	for (int k = CPU; k <= NUMA ; k++) {
-		STAILQ_FOREACH(np, &core_owned, link) {
+		STAILQ_FOREACH(np, &core_owned, link_alloc) {
 			int nb_cores = num_descendants[k][CORE];
 			int type_id = np->id / nb_cores;
 			for (int i = 0; i < nb_cores; i++) {
@@ -332,7 +332,7 @@ static struct node *alloc_core(struct proc *p, struct node *n)
 			if (n_owner != NULL) {
 				/* TODO: Trigger something here to actually do the allocation in
 				 * the kernel */
-				STAILQ_REMOVE(&(n_owner->core_owned), n, node, link);
+				STAILQ_REMOVE(&(n_owner->core_owned), n, node, link_alloc);
 				alloc_core_any(n_owner, 1);
 			}
 		}
@@ -349,7 +349,7 @@ static int free_core(struct proc *p, int core_id)
 		return -1;
 	} else {
 		n->allocated_to = NULL;
-		STAILQ_REMOVE(&(p->core_owned), n, node, link);
+		STAILQ_REMOVE(&(p->core_owned), n, node, link_alloc);
 		decref_nodes(n);
 		return 0;
 	}
@@ -366,14 +366,18 @@ static struct node *alloc_best_core(struct proc *p)
 
 static struct node *alloc_first_core(struct proc *p)
 {
-	return alloc_core(p, find_first_core());
+	return alloc_core(p, find_first_core(p));
 }
 
 /* Concat the core in parameter to the list of cores also in parameter. */
-static void concat_list(struct core_list *l, struct node *n) {
+static void concat_list(struct core_list *l, struct node *n,
+						enum link_type link) {
 	if (n != NULL) {
 		struct core_list temp = STAILQ_HEAD_INITIALIZER(temp);
-		STAILQ_INSERT_HEAD(&temp, n, link);
+		if (link == ALLOC)
+			STAILQ_INSERT_HEAD(&temp, n, link_alloc);
+		else
+			STAILQ_INSERT_HEAD(&temp, n, link_prov);
 		if (STAILQ_FIRST(l) == NULL) {
 			*l = temp;
 		} else {
@@ -396,7 +400,7 @@ void alloc_core_any(struct proc *p, int amt)
 				n = alloc_first_core(p);
 			else
 				n = alloc_best_core(p);
-			concat_list(&(p->core_owned), n);
+			concat_list(&(p->core_owned), n, ALLOC);
 		}
 	}
 }
@@ -412,7 +416,7 @@ void alloc_core_specific(struct proc *p, int core_id)
 	if (core_id <= num_cores) {
 		struct node *n = &node_lookup[CORE][core_id];
 		if (n->provisioned_to == p )
-			concat_list(&(p->core_owned), alloc_core(p, n));
+			concat_list(&(p->core_owned), alloc_core(p, n), ALLOC);
 	}
 }
 
@@ -422,7 +426,7 @@ void provision_core(struct proc *p, int core_id)
 	if (core_id <= num_cores) {
 		struct node *n = &node_lookup[CORE][core_id];
 		n->provisioned_to = p;
-		concat_list(&(p->core_provisioned), n);
+		concat_list(&(p->core_provisioned), n, PROV);
 	}
 }
 
@@ -433,7 +437,7 @@ void deprovision_core(struct proc *p, int core_id)
 		struct node *n = &node_lookup[CORE][core_id];
 		if (n->provisioned_to != NULL){
 			n->provisioned_to = NULL;
-			STAILQ_REMOVE(&(p->core_provisioned), n, node, link);
+			STAILQ_REMOVE(&(p->core_provisioned), n, node, link_prov);
 		}
 	}
 }
@@ -479,14 +483,14 @@ void test_structure()
 	p2->core_owned = list;
 	p1->core_provisioned = list;
 	p2->core_provisioned = list;
+	provision_core(p1, 7);
 	alloc_core_any(p1, 3);
 	provision_core(p2, 3);
 	//alloc_core_specific(3,p2);
 	provision_core(p1, 4);
 	alloc_core_specific(p1, 4);
 	alloc_core_any(p1, 1);
-	free_core(p1 ,0);
-	STAILQ_FOREACH(np, &(p1->core_owned), link) {
+	STAILQ_FOREACH(np, &(p1->core_owned), link_alloc) {
 		printf("I am core %d, refcount: %d\n", np->id,np->refcount[0]);
 	}
 	/* print_all_nodes(); */

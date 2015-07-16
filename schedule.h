@@ -11,6 +11,7 @@
 #include <sys/queue.h>
 
 enum node_type { CORE, CPU, SOCKET, NUMA };
+enum link_type { ALLOC, PROV };
 static char node_label[4][7] = { "CORE", "CPU", "SOCKET", "NUMA" };
 #define NUM_NODE_TYPES sizeof(enum node_type)
 
@@ -20,7 +21,8 @@ struct node {
 	int refcount[NUM_NODE_TYPES];
 	struct node *parent;
 	struct node *children;
-	STAILQ_ENTRY(node) link;
+	STAILQ_ENTRY(node) link_alloc;
+	STAILQ_ENTRY(node) link_prov;
 	struct proc *allocated_to;
 	struct proc *provisioned_to;
 };
