@@ -69,8 +69,8 @@ int main(int argc, char **argv)
 	topology_init();
 	nodes_init();
 	test_id_funcs();
-	test_structure();
 	//test_schedule();
+	test_structure();
 	return 0;
 }
 
