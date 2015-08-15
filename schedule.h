@@ -9,25 +9,31 @@
 #define	SCHEDULE_H
 
 #include <sys/queue.h>
+#include "topology.h"
 
-enum node_type { CORE, CPU, SOCKET, NUMA };
+enum node_type { CORE, CPU, SOCKET, NUMA, MACHINE, NUM_NODE_TYPES};
 enum link_type { ALLOC, PROV };
-static char node_label[4][7] = { "CORE", "CPU", "SOCKET", "NUMA" };
-#define NUM_NODE_TYPES sizeof(enum node_type)
+static char node_label[5][8] = { "CORE", "CPU", "SOCKET", "NUMA", "MACHINE" };
 
-struct node {
+struct core {
+	struct node *node;
+	struct core_info *info;																				
+	STAILQ_ENTRY(core) link_alloc;																		 
+	STAILQ_ENTRY(core) link_prov;																		  
+	struct proc *allocated_to;																			 
+	struct proc *provisioned_to;																		   
+};
+STAILQ_HEAD(core_list, core);
+
+struct node {                                                                                                      
 	int id;
-	enum node_type type;
-	int refcount[NUM_NODE_TYPES];
-	struct node *parent;
+	enum node_type type;																						   
+	int refcount[NUM_NODE_TYPES];																				  
+	struct node *parent;																						   
 	struct node *children;
-	STAILQ_ENTRY(node) link_alloc;
-	STAILQ_ENTRY(node) link_prov;
-	struct proc *allocated_to;
-	struct proc *provisioned_to;
+	struct core *core_data;
 };
 
-STAILQ_HEAD(core_list, node);
 struct proc {
 	struct core_list core_owned;
 	struct core_list core_provisioned;
