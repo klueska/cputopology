@@ -187,18 +187,16 @@ static int calc_core_distance(struct core_list cl, struct core *c)
 static struct core *find_best_core_provision(struct proc *p)
 {
 	int bestd = 0;
-	struct core_list core_prov = p->core_provisioned;
+	struct core_list core_prov_available= p->core_prov_not_allocated;
 	struct core_list core_alloc = p->core_owned;
 	struct core *bestc = NULL;
 	struct core *c = NULL;
-	if (STAILQ_FIRST(&(core_prov)) != NULL) {
-		STAILQ_FOREACH(c, &core_prov, link_prov) {
-			if (c->allocated_to == NULL) {
-				int sibd = calc_core_distance(core_alloc, c);
-				if (bestd == 0 || sibd < bestd) {
-					bestd = sibd;
-					bestc = c;
-				}
+	if (STAILQ_FIRST(&(core_prov_available)) != NULL) {
+		STAILQ_FOREACH(c, &core_prov_available, link_prov) {
+			int sibd = calc_core_distance(core_alloc, c);
+			if (bestd == 0 || sibd < bestd) {
+				bestd = sibd;
+				bestc = c;
 			}
 		}
 	}
@@ -217,10 +215,6 @@ static struct core *find_best_core_provision(struct proc *p)
  * one the proc owns. Allocate the core that has the lowest core_distance. */
 static struct core *find_best_core(struct proc *p)
 {
-	int bestd = 0;
-	struct core *c = NULL;
-	int sibling_id = 0;
-	struct core_list core_owned = p->core_owned;
 	struct core *bestc = find_best_core_provision(p);
 
 	/* If we found an available provisioned core, return it. */
@@ -228,6 +222,11 @@ static struct core *find_best_core(struct proc *p)
 		return bestc;
 
 	/* Otherwise, keep looking... */
+	int bestd = 0;
+	struct core *c = NULL;
+	int sibling_id = 0;
+	struct core_list core_owned = p->core_owned;
+
 	for (int k = CPU; k <= MACHINE; k++) {
 		STAILQ_FOREACH(c, &core_owned, link_alloc) {
 			int nb_cores = num_descendants[k][CORE];
@@ -265,15 +264,7 @@ static struct core *find_best_core(struct proc *p)
 /* Returns the first provision core available. If none is found, return NULL */
 static struct core *find_first_provision_core(struct proc *p)
 {
-	struct core_list core_prov = p->core_provisioned;
-	struct core *c = NULL;
-	if (STAILQ_FIRST(&(core_prov)) != NULL) {
-		STAILQ_FOREACH(c, &core_prov, link_prov) {
-			if (c->allocated_to == NULL)
-				return c;
-		}
-	}
-	return NULL;
+	return STAILQ_FIRST(&(p->core_prov_not_allocated));
 }
 
 /* Returns the best first core to allocate for a proc which owns no core.
@@ -357,9 +348,10 @@ static void decref_nodes(struct node *n)
 }
 
 /* Allocate a specific core if it is available. In this case, we need to check
- * if the core n is provisioned by p but allocated to an other proc. In this
- * case, we have to allocate a new core to this other proc.
- * TODO : We also have to check if the core n is provisioned by an other proc.
+ * if the core n is provisioned by p but allocated to an other proc. Then we
+ * have to allocate a new core to this other proc. Also, it is important here
+ * to maintain our list of provision and allocated or not allocated cores.
+ * TODO ? : We also have to check if the core n is provisioned by an other proc.
  * In this case, we should try to reprovision an other core to this proc. */
 static struct core *alloc_core(struct proc *p, struct core *c)
 {
@@ -369,7 +361,9 @@ static struct core *alloc_core(struct proc *p, struct core *c)
 		return NULL;
 
 	incref_nodes(c->node);
-	if (c->provisioned_to = p) {
+	if (c->provisioned_to == p) {
+		STAILQ_REMOVE(&(p->core_prov_not_allocated), c, core, link_prov);
+		STAILQ_INSERT_HEAD(&(p->core_prov_allocated), c, link_prov);
 		if (owner != NULL) {
 			/* TODO: Trigger something here to actually do the allocation in
 			 * the kernel */
@@ -391,6 +385,10 @@ static int free_core(struct proc *p, int core_id)
 
 	c->allocated_to = NULL;
 	STAILQ_REMOVE(&(p->core_owned), c, core, link_alloc);
+	if (c->provisioned_to == p){
+		STAILQ_REMOVE(&(p->core_prov_allocated), c, core, link_prov);
+		STAILQ_INSERT_HEAD(&(p->core_prov_not_allocated), c, link_prov);
+	}
 	decref_nodes(c->node);
 	return 0;
 }
@@ -469,7 +467,10 @@ void provision_core(struct proc *p, int core_id)
 	if (core_id <= num_cores) {
 		struct core *c = &core_list[core_id];
 		c->provisioned_to = p;
-		concat_list(&(p->core_provisioned), c, PROV);
+		if (c->allocated_to == p)
+			concat_list(&(p->core_prov_allocated), c, PROV);
+		else
+			concat_list(&(p->core_prov_not_allocated), c, PROV);
 	}
 }
 
@@ -478,9 +479,13 @@ void deprovision_core(struct proc *p, int core_id)
 {
 	if (core_id <= num_cores) {
 		struct core *c = &core_list[core_id];
-		if (c->provisioned_to != NULL){
+		if (c->provisioned_to == p){
 			c->provisioned_to = NULL;
-			STAILQ_REMOVE(&(p->core_provisioned), c, core, link_prov);
+			if (c->allocated_to == p)
+				STAILQ_REMOVE(&(p->core_prov_allocated), c, core, link_prov);
+			else
+				STAILQ_REMOVE(&(p->core_prov_not_allocated),
+							  c, core, link_prov);
 		}
 	}
 }
@@ -524,8 +529,10 @@ void test_structure()
 
 	p1->core_owned = list;
 	p2->core_owned = list;
-	p1->core_provisioned = list;
-	p2->core_provisioned = list;
+	p1->core_prov_allocated = list;
+	p2->core_prov_allocated = list;
+	p1->core_prov_not_allocated = list;
+	p2->core_prov_not_allocated = list;
 	provision_core(p1, 7);
 	alloc_core_any(p1, 3);
 	provision_core(p2, 3);

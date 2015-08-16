@@ -17,26 +17,27 @@ static char node_label[5][8] = { "CORE", "CPU", "SOCKET", "NUMA", "MACHINE" };
 
 struct core {
 	struct node *node;
-	struct core_info *info;																				
-	STAILQ_ENTRY(core) link_alloc;																		 
-	STAILQ_ENTRY(core) link_prov;																		  
-	struct proc *allocated_to;																			 
-	struct proc *provisioned_to;																		   
+	struct core_info *info;
+	STAILQ_ENTRY(core) link_alloc;
+	STAILQ_ENTRY(core) link_prov;
+	struct proc *allocated_to;
+	struct proc *provisioned_to;
 };
 STAILQ_HEAD(core_list, core);
 
-struct node {                                                                                                      
+struct node {
 	int id;
-	enum node_type type;																						   
-	int refcount[NUM_NODE_TYPES];																				  
-	struct node *parent;																						   
+	enum node_type type;
+	int refcount[NUM_NODE_TYPES];
+	struct node *parent;
 	struct node *children;
 	struct core *core_data;
 };
 
 struct proc {
 	struct core_list core_owned;
-	struct core_list core_provisioned;
+	struct core_list core_prov_allocated;
+	struct core_list core_prov_not_allocated;
 };
 
 void nodes_init();
