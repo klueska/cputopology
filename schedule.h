@@ -45,7 +45,6 @@ void alloc_core_any(struct proc *p, int amt);
 void alloc_core_specific(struct proc *p, int core_id);
 int free_core_specific(struct proc *p, int core_id);
 void provision_core(struct proc *p, int core_id);
-void deprovision_core(struct proc *p, int core_id);
 
 void print_node(struct node *n);
 void print_nodes(int type);

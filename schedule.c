@@ -461,32 +461,30 @@ void alloc_core_specific(struct proc *p, int core_id)
 	}
 }
 
+/* Remove the provision made by a proc for a core. */
+static void deprovision_core(struct core *c)
+{
+	struct proc *p = c-> provisioned_to;
+	c->provisioned_to = NULL;
+	if (c->allocated_to == p)
+		STAILQ_REMOVE(&(p->core_prov_allocated), c, core, link_prov);
+	else
+		STAILQ_REMOVE(&(p->core_prov_not_allocated),
+					  c, core, link_prov);
+}
+
 /* Provision a given core to the proc p. */
 void provision_core(struct proc *p, int core_id)
 {
 	if (core_id <= num_cores) {
 		struct core *c = &core_list[core_id];
+		if (c->provisioned_to != NULL)
+			deprovision_core(c);
 		c->provisioned_to = p;
 		if (c->allocated_to == p)
 			concat_list(&(p->core_prov_allocated), c, PROV);
 		else
 			concat_list(&(p->core_prov_not_allocated), c, PROV);
-	}
-}
-
-/* Remove the provision made by a proc for a core. */
-void deprovision_core(struct proc *p, int core_id)
-{
-	if (core_id <= num_cores) {
-		struct core *c = &core_list[core_id];
-		if (c->provisioned_to == p){
-			c->provisioned_to = NULL;
-			if (c->allocated_to == p)
-				STAILQ_REMOVE(&(p->core_prov_allocated), c, core, link_prov);
-			else
-				STAILQ_REMOVE(&(p->core_prov_not_allocated),
-							  c, core, link_prov);
-		}
 	}
 }
 
@@ -536,14 +534,39 @@ void test_structure()
 	provision_core(p1, 7);
 	alloc_core_any(p1, 3);
 	provision_core(p2, 3);
-	//alloc_core_specific(3,p2);
+	alloc_core_specific(p2, 3);
+	provision_core(p2, 4);
+	alloc_core_specific(p2, 4);
 	provision_core(p1, 4);
 	alloc_core_specific(p1, 4);
 	alloc_core_any(p1, 1);
+	free_core_specific(p1, 7);
+	provision_core(p2, 5);
+	printf("Cores allocated:\n");
 	STAILQ_FOREACH(c, &(p1->core_owned), link_alloc) {
-		printf("I am core %d, refcount: %d\n", c->info->core_id,
-		                                       c->node->refcount[0]);
+		printf("proc%d :core %d\n",1, c->info->core_id);
 	}
+	printf("\n");
+	STAILQ_FOREACH(c, &(p2->core_owned), link_alloc) {
+		printf("proc%d :core %d\n",2, c->info->core_id);
+	}
+	printf("\nCores prov_allocated:\n");
+	STAILQ_FOREACH(c, &(p1->core_prov_allocated), link_prov) {
+		printf("proc%d :core %d\n",1, c->info->core_id);
+	}
+	printf("\n");
+	STAILQ_FOREACH(c, &(p2->core_prov_allocated), link_prov) {
+		printf("proc%d :core %d\n",2, c->info->core_id);
+	}
+	printf("\nCores prov_not_allocated:\n");
+	STAILQ_FOREACH(c, &(p1->core_prov_not_allocated), link_prov) {
+		printf("proc%d :core %d\n",1, c->info->core_id);
+	}
+	printf("\n");
+	STAILQ_FOREACH(c, &(p2->core_prov_not_allocated), link_prov) {
+		printf("proc%d :core %d\n",2, c->info->core_id);
+	}
+	printf("\n");
 	/* print_all_nodes(); */
 	/* printf("\nAFTER\n\n"); */
 	/* print_all_nodes(); */
