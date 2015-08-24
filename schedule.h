@@ -15,29 +15,33 @@ enum node_type { CORE, CPU, SOCKET, NUMA, MACHINE, NUM_NODE_TYPES};
 enum link_type { ALLOC, PROV };
 static char node_label[5][8] = { "CORE", "CPU", "SOCKET", "NUMA", "MACHINE" };
 
-struct core {
-	struct node *node;
-	struct core_info *info;
-	STAILQ_ENTRY(core) link_alloc;
-	STAILQ_ENTRY(core) link_prov;
-	struct proc *allocated_to;
-	struct proc *provisioned_to;
+struct sched_pcore {
+	struct sched_pnode *spn;
+	struct core_info *spc_info;
+	STAILQ_ENTRY(sched_pcore) prov_next;
+	STAILQ_ENTRY(sched_pcore) alloc_next;
+	struct proc *alloc_proc;
+	struct proc *prov_proc;
 };
-STAILQ_HEAD(core_list, core);
+STAILQ_HEAD(sched_pcore_tailq, sched_pcore);
 
-struct node {
+struct sched_pnode {
 	int id;
 	enum node_type type;
 	int refcount[NUM_NODE_TYPES];
-	struct node *parent;
-	struct node *children;
-	struct core *core_data;
+	struct sched_pnode *parent;
+	struct sched_pnode *children;
+	struct sched_pcore *spc_data;
+};
+
+struct sched_proc_data {
+	struct sched_pcore_tailq alloc_me;
+	struct sched_pcore_tailq prov_alloc_me;
+	struct sched_pcore_tailq prov_not_alloc_me;
 };
 
 struct proc {
-	struct core_list core_owned;
-	struct core_list core_prov_allocated;
-	struct core_list core_prov_not_allocated;
+	struct sched_proc_data ksched_data;
 };
 
 void nodes_init();
@@ -46,7 +50,7 @@ void alloc_core_specific(struct proc *p, int core_id);
 int free_core_specific(struct proc *p, int core_id);
 void provision_core(struct proc *p, int core_id);
 
-void print_node(struct node *n);
+void print_node(struct sched_pnode *n);
 void print_nodes(int type);
 void print_all_nodes();
 void test_structure();

@@ -64,12 +64,12 @@ static int num_descendants[NUM_NODE_TYPES][NUM_NODE_TYPES];
 
 /* A list of lookup tables to find specific nodes by type and id. */
 static int total_nodes;
-static struct node *node_list;
-static struct core *core_list;
-static struct node *node_lookup[NUM_NODE_TYPES];
+static struct sched_pnode *node_list;
+static struct sched_pcore *core_list;
+static struct sched_pnode *node_lookup[NUM_NODE_TYPES];
 
 /* Forward declare some functions. */
-static struct core *alloc_core(struct proc *p, struct core *c);
+static struct sched_pcore *alloc_core(struct proc *p, struct sched_pcore *c);
 
 /* Create a node and initialize it. */
 static void init_nodes(int type, int num, int nchildren)
@@ -82,7 +82,7 @@ static void init_nodes(int type, int num, int nchildren)
 
 	/* Initialize all fields of each node. */
 	for (int i = 0; i < num; i++) {
-		struct node *n = &node_lookup[type][i];
+		struct sched_pnode *n = &node_lookup[type][i];
 		n->id = i;
 		n->type = type;
 		memset(n->refcount, 0, sizeof(n->refcount));
@@ -91,13 +91,13 @@ static void init_nodes(int type, int num, int nchildren)
 		for (int j = 0; j < nchildren; j++)
 			n->children[j].parent = n;
 
-		n->core_data = NULL;
+		n->spc_data = NULL;
 		if (n->type == CORE) {
-			n->core_data = &core_list[n->id];
-			n->core_data->node = n;
-			n->core_data->info = &cpu_topology_info.core_list[n->id];
-			n->core_data->allocated_to = NULL;
-			n->core_data->provisioned_to = NULL;
+			n->spc_data = &core_list[n->id];
+			n->spc_data->spn = n;
+			n->spc_data->spc_info = &cpu_topology_info.core_list[n->id];
+			n->spc_data->alloc_proc = NULL;
+			n->spc_data->prov_proc = NULL;
 		}
 	}
 }
@@ -133,10 +133,10 @@ void nodes_init()
 {
 	/* Allocate a flat array of nodes. */
 	total_nodes = num_cores + num_cpus + num_sockets + num_numa;
-	void *nodes_and_cores = malloc(total_nodes * sizeof(struct node) +
-	                               num_cores * sizeof(struct core));
+	void *nodes_and_cores = malloc(total_nodes * sizeof(struct sched_pnode) +
+	                               num_cores * sizeof(struct sched_pcore));
 	node_list = nodes_and_cores;
-	core_list = nodes_and_cores + total_nodes * sizeof(struct node);
+	core_list = nodes_and_cores + total_nodes * sizeof(struct sched_pnode);
 
 	/* Initialize the number of descendants from our cpu_topology info. */
 	num_descendants[CPU][CORE] = cores_per_cpu;
@@ -161,21 +161,22 @@ void nodes_init()
 }
 
 /* Returns the first core for the node n. */
-static struct core *first_core(struct node *n)
+static struct sched_pcore *first_core(struct sched_pnode *n)
 {
-	struct node *first_child = n;
+	struct sched_pnode *first_child = n;
 	while (first_child->type != CORE)
 		first_child = &first_child->children[0];
-	return first_child->core_data;
+	return first_child->spc_data;
 }
 
 /* Returns the core_distance of one core from the list of cores in parameter */
-static int calc_core_distance(struct core_list cl, struct core *c)
+static int calc_core_distance(struct sched_pcore_tailq cl,
+							  struct sched_pcore *c)
 {
 	int d = 0;
-	struct core *temp = NULL;
-	STAILQ_FOREACH(temp, &cl, link_alloc) {
-		d += core_distance[c->info->core_id][temp->info->core_id];
+	struct sched_pcore *temp = NULL;
+	STAILQ_FOREACH(temp, &cl, alloc_next) {
+		d += core_distance[c->spc_info->core_id][temp->spc_info->core_id];
 	}
 	return d;
 }
@@ -184,15 +185,16 @@ static int calc_core_distance(struct core_list cl, struct core *c)
  * slightly different from find_best_core in the way we just need to check the
  * cores itself, and don't need to check other levels of the topology. If no
  * cores are available we return NULL.*/
-static struct core *find_best_core_provision(struct proc *p)
+static struct sched_pcore *find_best_core_provision(struct proc *p)
 {
 	int bestd = 0;
-	struct core_list core_prov_available= p->core_prov_not_allocated;
-	struct core_list core_alloc = p->core_owned;
-	struct core *bestc = NULL;
-	struct core *c = NULL;
+	struct sched_pcore_tailq core_prov_available = p->ksched_data.
+												   prov_not_alloc_me;
+	struct sched_pcore_tailq core_alloc = p->ksched_data.alloc_me;
+	struct sched_pcore *bestc = NULL;
+	struct sched_pcore *c = NULL;
 	if (STAILQ_FIRST(&(core_prov_available)) != NULL) {
-		STAILQ_FOREACH(c, &core_prov_available, link_prov) {
+		STAILQ_FOREACH(c, &core_prov_available, prov_next) {
 			int sibd = calc_core_distance(core_alloc, c);
 			if (bestd == 0 || sibd < bestd) {
 				bestd = sibd;
@@ -213,9 +215,9 @@ static struct core *find_best_core_provision(struct proc *p)
  * Then check siblings of the cores the proc already own. Calculate for
  * every possible node its core_distance (sum of distance from this core to the
  * one the proc owns. Allocate the core that has the lowest core_distance. */
-static struct core *find_best_core(struct proc *p)
+static struct sched_pcore *find_best_core(struct proc *p)
 {
-	struct core *bestc = find_best_core_provision(p);
+	struct sched_pcore *bestc = find_best_core_provision(p);
 
 	/* If we found an available provisioned core, return it. */
 	if (bestc != NULL)
@@ -223,18 +225,18 @@ static struct core *find_best_core(struct proc *p)
 
 	/* Otherwise, keep looking... */
 	int bestd = 0;
-	struct core *c = NULL;
+	struct sched_pcore *c = NULL;
 	int sibling_id = 0;
-	struct core_list core_owned = p->core_owned;
+	struct sched_pcore_tailq core_owned = p->ksched_data.alloc_me;
 
 	for (int k = CPU; k <= MACHINE; k++) {
-		STAILQ_FOREACH(c, &core_owned, link_alloc) {
+		STAILQ_FOREACH(c, &core_owned, alloc_next) {
 			int nb_cores = num_descendants[k][CORE];
-			int type_id = get_node_id(c->info, k);
+			int type_id = get_node_id(c->spc_info, k);
 			for (int i = 0; i < nb_cores; i++) {
 				sibling_id = i + nb_cores*type_id;
-				struct core *sibc = &core_list[sibling_id];
-				if (sibc->allocated_to == NULL) {
+				struct sched_pcore *sibc = &core_list[sibling_id];
+				if (sibc->alloc_proc == NULL) {
 					int sibd = calc_core_distance(core_owned, sibc);
 					if (bestd == 0 || sibd <= bestd) {
 						/* If the core we have found has best core is
@@ -242,8 +244,8 @@ static struct core *find_best_core(struct proc *p)
 						 * equivalent core (in terms of distance) and allocate
 						 * this core instead. */
 						if (sibd == bestd) {
-							if (bestc->provisioned_to != NULL &&
-								sibc->provisioned_to == NULL) {
+							if (bestc->prov_proc != NULL &&
+								sibc->prov_proc == NULL) {
 								bestd = sibd;
 								bestc = sibc;
 							}
@@ -262,22 +264,22 @@ static struct core *find_best_core(struct proc *p)
 }
 
 /* Returns the first provision core available. If none is found, return NULL */
-static struct core *find_first_provision_core(struct proc *p)
+static struct sched_pcore *find_first_provision_core(struct proc *p)
 {
-	return STAILQ_FIRST(&(p->core_prov_not_allocated));
+	return STAILQ_FIRST(&(p->ksched_data.prov_not_alloc_me));
 }
 
 /* Returns the best first core to allocate for a proc which owns no core.
  * Return the core that is the farthest from the others's proc cores. */
-static struct core *find_first_core(struct proc *p)
+static struct sched_pcore *find_first_core(struct proc *p)
 {
-	struct node *n = NULL;
-	struct node *bestn = NULL;
+	struct sched_pnode *n = NULL;
+	struct sched_pnode *bestn = NULL;
 	int best_refcount = 0;
-	struct node *siblings = node_lookup[MACHINE];
+	struct sched_pnode *siblings = node_lookup[MACHINE];
 	int num_siblings = 0;
 
-	struct core *c = find_first_provision_core(p);
+	struct sched_pcore *c = find_first_provision_core(p);
 	if (c != NULL)
 		return c;
 
@@ -301,17 +303,17 @@ static struct core *find_first_core(struct proc *p)
 		best_refcount = 0;
 		bestn = NULL;
 	}
-	return bestn->core_data;
+	return bestn->spc_data;
 }
 
 /* Recursively incref a node from its level through its ancestors.  At the
  * current level, we simply check if the refcount is 0, if it is not, we
  * increment it to one. Then, for each other lower level of the array, we sum
  * the refcount of the children. */
-static void incref_nodes(struct node *n)
+static void incref_nodes(struct sched_pnode *n)
 {
 	int type;
-	struct node *p;
+	struct sched_pnode *p;
 	while (n != NULL) {
 		type = n->type;
 		if (n->refcount[type] == 0) {
@@ -329,10 +331,10 @@ static void incref_nodes(struct node *n)
 /* Recursively decref a node from its level through its ancestors.  If the
  * refcount is not 0, we have to check if the refcount of every child of the
  * current node is 0 to decrement its refcount. */
-static void decref_nodes(struct node *n)
+static void decref_nodes(struct sched_pnode *n)
 {
 	int type;
-	struct node *p;
+	struct sched_pnode *p;
 	while (n != NULL) {
 		type = n->type;
 		if ((type == CORE) || (n->refcount[child_node_type(type)] == 0)) {
@@ -353,43 +355,43 @@ static void decref_nodes(struct node *n)
  * to maintain our list of provision and allocated or not allocated cores.
  * TODO ? : We also have to check if the core n is provisioned by an other proc.
  * In this case, we should try to reprovision an other core to this proc. */
-static struct core *alloc_core(struct proc *p, struct core *c)
+static struct sched_pcore *alloc_core(struct proc *p, struct sched_pcore *c)
 {
-	struct proc *owner = c->allocated_to;
+	struct proc *owner = c->alloc_proc;
 
 	if (c == NULL || owner == p)
 		return NULL;
 
-	incref_nodes(c->node);
-	if (c->provisioned_to == p) {
-		STAILQ_REMOVE(&(p->core_prov_not_allocated), c, core, link_prov);
-		STAILQ_INSERT_HEAD(&(p->core_prov_allocated), c, link_prov);
+	incref_nodes(c->spn);
+	if (c->prov_proc == p) {
+		STAILQ_REMOVE(&(p->ksched_data.prov_not_alloc_me), c, sched_pcore, prov_next);
+		STAILQ_INSERT_HEAD(&(p->ksched_data.prov_alloc_me), c, prov_next);
 		if (owner != NULL) {
 			/* TODO: Trigger something here to actually do the allocation in
 			 * the kernel */
-			STAILQ_REMOVE(&(owner->core_owned), c, core, link_alloc);
+			STAILQ_REMOVE(&(owner->ksched_data.alloc_me), c, sched_pcore, alloc_next);
 			alloc_core_any(owner, 1);
 		}
 	}
-	c->allocated_to = p;
+	c->alloc_proc = p;
 	return c;
 }
 
 /* Free a specific core. */
 static int free_core(struct proc *p, int core_id)
 {
-	struct core *c = &core_list[core_id];
+	struct sched_pcore *c = &core_list[core_id];
 
-	if (c == NULL || c->allocated_to != p || core_id > num_cores)
+	if (c == NULL || c->alloc_proc != p || core_id > num_cores)
 		return -1;
 
-	c->allocated_to = NULL;
-	STAILQ_REMOVE(&(p->core_owned), c, core, link_alloc);
-	if (c->provisioned_to == p){
-		STAILQ_REMOVE(&(p->core_prov_allocated), c, core, link_prov);
-		STAILQ_INSERT_HEAD(&(p->core_prov_not_allocated), c, link_prov);
+	c->alloc_proc = NULL;
+	STAILQ_REMOVE(&(p->ksched_data.alloc_me), c, sched_pcore, alloc_next);
+	if (c->prov_proc == p){
+		STAILQ_REMOVE(&(p->ksched_data.prov_alloc_me), c, sched_pcore, prov_next);
+		STAILQ_INSERT_HEAD(&(p->ksched_data.prov_not_alloc_me), c, prov_next);
 	}
-	decref_nodes(c->node);
+	decref_nodes(c->spn);
 	return 0;
 }
 
@@ -397,27 +399,27 @@ static int free_core(struct proc *p, int core_id)
  * different interpretations, but currently it means to allocate nodes as
  * tightly packed as possible.  All ancestors of the chosen node will be
  * increfed in the process, effectively allocating them as well. */
-static struct core *alloc_best_core(struct proc *p)
+static struct sched_pcore *alloc_best_core(struct proc *p)
 {
 	return alloc_core(p, find_best_core(p));
 }
 
-static struct core *alloc_first_core(struct proc *p)
+static struct sched_pcore *alloc_first_core(struct proc *p)
 {
 	return alloc_core(p, find_first_core(p));
 }
 
 /* Concat the core in parameter to the list of cores also in parameter. */
-static void concat_list(struct core_list *l, struct core *c,
+static void concat_list(struct sched_pcore_tailq *l, struct sched_pcore *c,
                         enum link_type link)
 {
-	struct core_list temp = STAILQ_HEAD_INITIALIZER(temp);
+	struct sched_pcore_tailq temp = STAILQ_HEAD_INITIALIZER(temp);
 
 	if (c != NULL) {
 		if (link == ALLOC)
-			STAILQ_INSERT_HEAD(&temp, c, link_alloc);
+			STAILQ_INSERT_HEAD(&temp, c, alloc_next);
 		else
-			STAILQ_INSERT_HEAD(&temp, c, link_prov);
+			STAILQ_INSERT_HEAD(&temp, c, prov_next);
 
 		if (STAILQ_FIRST(l) == NULL) {
 			*l = temp;
@@ -436,12 +438,12 @@ void alloc_core_any(struct proc *p, int amt)
 {
 	if (amt <= num_cores) {
 		for (int i = 0; i < amt; i++) {
-			struct core *c = NULL;
-			if (STAILQ_FIRST(&(p->core_owned)) == NULL)
+			struct sched_pcore *c = NULL;
+			if (STAILQ_FIRST(&(p->ksched_data.alloc_me)) == NULL)
 				c = alloc_first_core(p);
 			else
 				c = alloc_best_core(p);
-			concat_list(&(p->core_owned), c, ALLOC);
+			concat_list(&(p->ksched_data.alloc_me), c, ALLOC);
 		}
 	}
 }
@@ -455,40 +457,40 @@ int free_core_specific(struct proc* p, int core_id)
 void alloc_core_specific(struct proc *p, int core_id)
 {
 	if (core_id <= num_cores) {
-		struct core *c = &core_list[core_id];
-		if (c->provisioned_to == p)
-			concat_list(&(p->core_owned), alloc_core(p, c), ALLOC);
+		struct sched_pcore *c = &core_list[core_id];
+		if (c->prov_proc == p)
+			concat_list(&(p->ksched_data.alloc_me), alloc_core(p, c), ALLOC);
 	}
 }
 
 /* Remove the provision made by a proc for a core. */
-static void deprovision_core(struct core *c)
+static void deprovision_core(struct sched_pcore *c)
 {
-	struct proc *p = c-> provisioned_to;
-	c->provisioned_to = NULL;
-	if (c->allocated_to == p)
-		STAILQ_REMOVE(&(p->core_prov_allocated), c, core, link_prov);
+	struct proc *p = c-> prov_proc;
+	c->prov_proc = NULL;
+	if (c->alloc_proc == p)
+		STAILQ_REMOVE(&(p->ksched_data.prov_alloc_me), c, sched_pcore, prov_next);
 	else
-		STAILQ_REMOVE(&(p->core_prov_not_allocated),
-					  c, core, link_prov);
+		STAILQ_REMOVE(&(p->ksched_data.prov_alloc_me),
+					  c, sched_pcore, prov_next);
 }
 
 /* Provision a given core to the proc p. */
 void provision_core(struct proc *p, int core_id)
 {
 	if (core_id <= num_cores) {
-		struct core *c = &core_list[core_id];
-		if (c->provisioned_to != NULL)
+		struct sched_pcore *c = &core_list[core_id];
+		if (c->prov_proc != NULL)
 			deprovision_core(c);
-		c->provisioned_to = p;
-		if (c->allocated_to == p)
-			concat_list(&(p->core_prov_allocated), c, PROV);
+		c->prov_proc = p;
+		if (c->alloc_proc == p)
+			concat_list(&(p->ksched_data.prov_alloc_me), c, PROV);
 		else
-			concat_list(&(p->core_prov_not_allocated), c, PROV);
+			concat_list(&(p->ksched_data.prov_not_alloc_me), c, PROV);
 	}
 }
 
-void print_node(struct node *n)
+void print_node(struct sched_pnode *n)
 {
 	printf("%-6s id: %2d, type: %d, num_children: %2d",
 		   node_label[n->type], n->id, n->type,
@@ -506,7 +508,7 @@ void print_node(struct node *n)
 
 void print_nodes(int type)
 {
-	struct node *n = NULL;
+	struct sched_pnode *n = NULL;
 	for (int i = 0; i < num_nodes[type]; i++) {
 		print_node(&node_lookup[type][i]);
 	}
@@ -520,17 +522,17 @@ void print_all_nodes()
 
 void test_structure()
 {
-	struct core *c = NULL;
+	struct sched_pcore *c = NULL;
 	struct proc *p1 = malloc(sizeof(struct proc));
 	struct proc *p2 = malloc(sizeof(struct proc));
-	struct core_list list = STAILQ_HEAD_INITIALIZER(list);
+	struct sched_pcore_tailq list = STAILQ_HEAD_INITIALIZER(list);
 
-	p1->core_owned = list;
-	p2->core_owned = list;
-	p1->core_prov_allocated = list;
-	p2->core_prov_allocated = list;
-	p1->core_prov_not_allocated = list;
-	p2->core_prov_not_allocated = list;
+	p1->ksched_data.alloc_me = list;
+	p2->ksched_data.alloc_me = list;
+	p1->ksched_data.prov_alloc_me = list;
+	p2->ksched_data.prov_alloc_me = list;
+	p1->ksched_data.prov_not_alloc_me = list;
+	p2->ksched_data.prov_not_alloc_me = list;
 	provision_core(p1, 7);
 	alloc_core_any(p1, 3);
 	provision_core(p2, 3);
@@ -543,34 +545,29 @@ void test_structure()
 	free_core_specific(p1, 7);
 	provision_core(p2, 5);
 	printf("Cores allocated:\n");
-	STAILQ_FOREACH(c, &(p1->core_owned), link_alloc) {
-		printf("proc%d :core %d\n",1, c->info->core_id);
+	STAILQ_FOREACH(c, &(p1->ksched_data.alloc_me), alloc_next) {
+		printf("proc%d :core %d\n",1, c->spc_info->core_id);
 	}
 	printf("\n");
-	STAILQ_FOREACH(c, &(p2->core_owned), link_alloc) {
-		printf("proc%d :core %d\n",2, c->info->core_id);
+	STAILQ_FOREACH(c, &(p2->ksched_data.alloc_me), alloc_next) {
+		printf("proc%d :core %d\n",2, c->spc_info->core_id);
 	}
 	printf("\nCores prov_allocated:\n");
-	STAILQ_FOREACH(c, &(p1->core_prov_allocated), link_prov) {
-		printf("proc%d :core %d\n",1, c->info->core_id);
+	STAILQ_FOREACH(c, &(p1->ksched_data.prov_alloc_me), prov_next) {
+		printf("proc%d :core %d\n",1, c->spc_info->core_id);
 	}
 	printf("\n");
-	STAILQ_FOREACH(c, &(p2->core_prov_allocated), link_prov) {
-		printf("proc%d :core %d\n",2, c->info->core_id);
+	STAILQ_FOREACH(c, &(p2->ksched_data.prov_alloc_me), prov_next) {
+		printf("proc%d :core %d\n",2, c->spc_info->core_id);
 	}
 	printf("\nCores prov_not_allocated:\n");
-	STAILQ_FOREACH(c, &(p1->core_prov_not_allocated), link_prov) {
-		printf("proc%d :core %d\n",1, c->info->core_id);
+	STAILQ_FOREACH(c, &(p1->ksched_data.prov_not_alloc_me), prov_next) {
+		printf("proc%d :core %d\n",1, c->spc_info->core_id);
 	}
 	printf("\n");
-	STAILQ_FOREACH(c, &(p2->core_prov_not_allocated), link_prov) {
-		printf("proc%d :core %d\n",2, c->info->core_id);
+	STAILQ_FOREACH(c, &(p2->ksched_data.prov_not_alloc_me), prov_next) {
+		printf("proc%d :core %d\n",2, c->spc_info->core_id);
 	}
 	printf("\n");
-	/* print_all_nodes(); */
-	/* printf("\nAFTER\n\n"); */
-	/* print_all_nodes(); */
-	/* struct core_list test = alloc_core_any(1); */
-	/* printf("\nAFTER\n\n"); */
 	print_all_nodes();
 }
