@@ -525,14 +525,13 @@ void test_structure()
 	struct sched_pcore *c = NULL;
 	struct proc *p1 = malloc(sizeof(struct proc));
 	struct proc *p2 = malloc(sizeof(struct proc));
-	struct sched_pcore_tailq list = STAILQ_HEAD_INITIALIZER(list);
+	STAILQ_INIT(&p1->ksched_data.alloc_me);
+	STAILQ_INIT(&p2->ksched_data.alloc_me);
+	STAILQ_INIT(&p1->ksched_data.prov_alloc_me);
+	STAILQ_INIT(&p2->ksched_data.prov_alloc_me);
+	STAILQ_INIT(&p1->ksched_data.prov_not_alloc_me);
+	STAILQ_INIT(&p2->ksched_data.prov_not_alloc_me);
 
-	p1->ksched_data.alloc_me = list;
-	p2->ksched_data.alloc_me = list;
-	p1->ksched_data.prov_alloc_me = list;
-	p2->ksched_data.prov_alloc_me = list;
-	p1->ksched_data.prov_not_alloc_me = list;
-	p2->ksched_data.prov_not_alloc_me = list;
 	provision_core(p1, 7);
 	alloc_core_any(p1, 3);
 	provision_core(p2, 3);
