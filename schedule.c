@@ -409,29 +409,6 @@ static struct sched_pcore *alloc_first_core(struct proc *p)
 	return alloc_core(p, find_first_core(p));
 }
 
-/* Concat the core in parameter to the list of cores also in parameter. */
-static void concat_list(struct sched_pcore_tailq *l, struct sched_pcore *c,
-                        enum link_type link)
-{
-	struct sched_pcore_tailq temp = STAILQ_HEAD_INITIALIZER(temp);
-
-	if (c != NULL) {
-		if (link == ALLOC)
-			STAILQ_INSERT_HEAD(&temp, c, alloc_next);
-		else
-			STAILQ_INSERT_HEAD(&temp, c, prov_next);
-
-		if (STAILQ_FIRST(l) == NULL) {
-			*l = temp;
-		} else {
-			if (STAILQ_FIRST(&temp) == NULL)
-				return;
-			else
-				STAILQ_CONCAT(l, &temp);
-		}
-	}
-}
-
 /* Allocate an amount of cores for proc p. Those cores are elected according to
  * the algorithm in find_best_core. */
 void alloc_core_any(struct proc *p, int amt)
@@ -443,7 +420,7 @@ void alloc_core_any(struct proc *p, int amt)
 				c = alloc_first_core(p);
 			else
 				c = alloc_best_core(p);
-			concat_list(&(p->ksched_data.alloc_me), c, ALLOC);
+			STAILQ_INSERT_TAIL(&p->ksched_data.alloc_me, c, alloc_next);
 		}
 	}
 }
@@ -458,8 +435,10 @@ void alloc_core_specific(struct proc *p, int core_id)
 {
 	if (core_id <= num_cores) {
 		struct sched_pcore *c = &core_list[core_id];
-		if (c->prov_proc == p)
-			concat_list(&(p->ksched_data.alloc_me), alloc_core(p, c), ALLOC);
+		if (c->prov_proc == p) {
+			struct sched_pcore *c = alloc_core(p, c);
+			STAILQ_INSERT_TAIL(&p->ksched_data.alloc_me, c, alloc_next);
+		}
 	}
 }
 
@@ -484,9 +463,9 @@ void provision_core(struct proc *p, int core_id)
 			deprovision_core(c);
 		c->prov_proc = p;
 		if (c->alloc_proc == p)
-			concat_list(&(p->ksched_data.prov_alloc_me), c, PROV);
+			STAILQ_INSERT_TAIL(&p->ksched_data.prov_alloc_me, c, prov_next);
 		else
-			concat_list(&(p->ksched_data.prov_not_alloc_me), c, PROV);
+			STAILQ_INSERT_TAIL(&p->ksched_data.prov_not_alloc_me, c, prov_next);
 	}
 }
 
