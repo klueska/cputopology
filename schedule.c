@@ -108,25 +108,27 @@ static void init_nodes(int type, int num, int nchildren)
  * is 6. Otherwise their distance is 8.*/
 static void init_core_distances()
 {
-	if ((core_distance = calloc(num_cores, sizeof(int*))) != NULL) {
-		for (int i = 0; i < num_cores; i++) {
-			if ((core_distance[i] = calloc(num_cores,
-										   sizeof(int))) == NULL)
-				exit(-1);
-		}
-		for (int i = 0; i < num_cores; i++) {
-			for (int j = 0; j < num_cores; j++) {
-				for (int k = CPU; k<= MACHINE; k++) {
-					if (i/num_descendants[k][CORE] ==
-						j/num_descendants[k][CORE]) {
-						core_distance[i][j] = k;
-						break;
-					}
+	core_distance = calloc(num_cores, sizeof(int*));
+	if (core_distance == NULL)
+		exit(-1);
+	for (int i = 0; i < num_cores; i++) {
+		core_distance[i] = calloc(num_cores, sizeof(int));
+		if (core_distance[i] == NULL)
+			exit(-1);
+	}
+	for (int i = 0; i < num_cores; i++) {
+		for (int j = 0; j < num_cores; j++) {
+			for (int k = CPU; k<= MACHINE; k++) {
+				if (i/num_descendants[k][CORE] ==
+					j/num_descendants[k][CORE]) {
+					core_distance[i][j] = k;
+					break;
 				}
 			}
 		}
 	}
 }
+
 
 /* Build our available nodes structure. */
 void nodes_init()
@@ -193,13 +195,11 @@ static struct sched_pcore *find_best_core_provision(struct proc *p)
 	struct sched_pcore_tailq core_alloc = p->ksched_data.alloc_me;
 	struct sched_pcore *bestc = NULL;
 	struct sched_pcore *c = NULL;
-	if (STAILQ_FIRST(&(core_prov_available)) != NULL) {
-		STAILQ_FOREACH(c, &core_prov_available, prov_next) {
-			int sibd = calc_core_distance(core_alloc, c);
-			if (bestd == 0 || sibd < bestd) {
-				bestd = sibd;
-				bestc = c;
-			}
+	STAILQ_FOREACH(c, &core_prov_available, prov_next) {
+		int sibd = calc_core_distance(core_alloc, c);
+		if (bestd == 0 || sibd < bestd) {
+			bestd = sibd;
+			bestc = c;
 		}
 	}
 	return bestc;
@@ -370,7 +370,6 @@ static struct sched_pcore *alloc_core(struct proc *p, struct sched_pcore *c)
 			/* TODO: Trigger something here to actually do the allocation in
 			 * the kernel */
 			STAILQ_REMOVE(&(owner->ksched_data.alloc_me), c, sched_pcore, alloc_next);
-			alloc_core_any(owner, 1);
 		}
 	}
 	c->alloc_proc = p;
@@ -388,7 +387,8 @@ static int free_core(struct proc *p, int core_id)
 	c->alloc_proc = NULL;
 	STAILQ_REMOVE(&(p->ksched_data.alloc_me), c, sched_pcore, alloc_next);
 	if (c->prov_proc == p){
-		STAILQ_REMOVE(&(p->ksched_data.prov_alloc_me), c, sched_pcore, prov_next);
+		STAILQ_REMOVE(&(p->ksched_data.prov_alloc_me),
+					  c, sched_pcore, prov_next);
 		STAILQ_INSERT_HEAD(&(p->ksched_data.prov_not_alloc_me), c, prov_next);
 	}
 	decref_nodes(c->spn);
@@ -538,9 +538,9 @@ void test_structure()
 	provision_core(p2, 3);
 	alloc_core_specific(p2, 3);
 	provision_core(p2, 4);
-	alloc_core_specific(p2, 4);
+	alloc_core_any(p2, 1);
 	provision_core(p1, 4);
-	alloc_core_specific(p1, 4);
+	alloc_core_any(p1, 1);
 	alloc_core_any(p1, 1);
 	free_core_specific(p1, 7);
 	provision_core(p2, 5);
